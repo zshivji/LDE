@@ -1,0 +1,26 @@
+# Ignore
+
+.DS_STORE
+
+Untracked/
+
+bin/tmp/**
+bin/slurm**
+bin/old_slurm/**
+
+# DVC tracked
+
+all_rep_proteins_aa/archaea/
+all_rep_proteins_aa/bacteria/
+
+protein_faa_reps/bacteria/
+protein_faa_reps/archaea/
+
+results/hmmsearch_results/archaea
+results/hmmsearch_results/bacteria
+results/fasta_splits/
+
+operon-org/input-fastas/
+operon-org/microbeannotator/
+
+bin/__pycache__/cluster_pos.cpython-312.pyc

@@ -1,0 +1,27 @@
+name: Copy to gh-pages
+
+on:
+  push:
+    branches:
+      - main  # Set a branch name to trigger deployment
+    paths:
+      - results/final/nif_genomes.csv
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out main branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Copy csv to gh-pages
+        uses: planetoftheweb/copy-to-branches@v1.3
+        env:
+          key: main
+          branches: gh-pages
+          files: results/final/nif_genomes.csv

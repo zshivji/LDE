@@ -1,0 +1,64 @@
+environments:
+  cluster:
+    kind: slurm
+  
+pipeline:
+  stages:
+    cluster_HMM_seeds:
+      kind: sbatch
+      script_path: bin/1_cluster.sh
+      environment: cluster
+      inputs:
+        - path: HMM_seeds/
+          storage: dvc
+      outputs:
+        - path: alignments/
+          storage: git
+        - path: alignments/
+          storage: git
+      # sbatch_options:
+      #   - --cpus
+
+    align_mafft:
+      kind: sbatch
+      script_path: bin/1_align_mafft.sh
+      environment: cluster
+      inputs:
+        - path: HMM_seeds/
+          storage: dvc
+      outputs:
+        - path: alignments/
+          storage: git
+      # sbatch_options:
+      #   - --cpus
+    
+    hmm_search:
+      kind: sbatch
+      script_path: bin/2_hmmsearch.sh
+      environment: cluster
+      inputs:
+        - all_rep_proteins_aa/
+        - HMMs/combined_nif.hmm
+      outputs:
+        - results/hmmsearch_results/
+    parse_hmm:
+      kind: sbatch
+      script_path: bin/3_parse_hmm.sh
+      environment: cluster
+      inputs:
+        - 
+      outputs:
+    conserved_res:
+      kind: sbatch
+      script_path: bin/3_parse_hmm.sh
+      environment: cluster
+      inputs:
+      outputs:
+    export: 
+      kind: sbatch
+      script_path: bin/
+      environment: cluster
+      inputs:
+      outputs:
+        - path: results/final/
+          storage: dvc
