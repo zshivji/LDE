@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
 
 def parse_hits(hits_path: Path, outdir: Path) -> None:
 
-    GTDB_taxonomy = pd.read_csv('GTDB_taxonomy.tsv', header = None, sep = '\t', names=['GenomeID', 'GTDB'])
+    GTDB_taxonomy = pd.read_csv('GTDB_taxonomy.gz', header = None, sep = '\t', names=['GenomeID', 'GTDB'])
 
     # Create empty lists
     result_target = []
@@ -84,14 +84,14 @@ def parse_hits(hits_path: Path, outdir: Path) -> None:
         best_domain_evalue.append(item.hsps[0].evalue)
         bitscore.append(item.bitscore)
         bias.append(item.bias)
-        str = r'# ([0-9]+) # ([0-9]+)'
-        location.append(re.match(str, item.description).group(1) + "-" + re.match(str, item.description).group(2))
+        s = r'# ([0-9]+) # ([0-9]+)'
+        location.append(re.match(s, item.description).group(1) + "-" + re.match(s, item.description).group(2))
         # grab full alignment length (need to sum all domains)
         alen = 0
         for domain in item.hsps:
             alen += domain.aln_span
         alens.append(alen)
-        slength.append(int(re.match(str, item.description).group(2))-int(re.match(str, item.description).group(1)))
+        slength.append(int(re.match(s, item.description).group(2))-int(re.match(s, item.description).group(1)))
 
     # Parse through files in output directory
 
@@ -99,8 +99,8 @@ def parse_hits(hits_path: Path, outdir: Path) -> None:
 
         # RegEx for the GenomeID (double checking that file is really a genome)
         try:
-            str = r'([\w]+_[\w]+_[\d]+\.[\d])'
-            genomeID = re.search(str, file).group()
+            s = r'([\w]+_[\w]+_[\d]+\.[\d])'
+            genomeID = re.search(s, file).group()
         except:
             continue
 
@@ -109,8 +109,8 @@ def parse_hits(hits_path: Path, outdir: Path) -> None:
             for item in result.hits:
 
                 # grab gene name
-                str = r'([a-zA-Z]+)' # ex. nifHDK, pchlide
-                gene = re.findall(str, result.id)[0]
+                s = r'([a-zA-Z]+)' # ex. nifHDK, pchlide
+                gene = re.findall(s, result.id)[0]
 
                 # Check for positive bitscore and append the data to the corresponding lists
                 if item.bitscore > 0 and item.evalue < 0.01:
@@ -143,8 +143,8 @@ def parse_hits(hits_path: Path, outdir: Path) -> None:
 
     # save as feather file
     outdir.mkdir(parents=True, exist_ok=True)
-    hits.to_feather(outdir / "hits.feather")
-    hits.to_csv(outdir / "hits.csv", index=False)
+    hits.to_feather(str(outdir) + ".feather")
+    hits.to_csv(str(outdir) + ".csv", index=False)
 
 def main() -> None:
     args = parse_args()

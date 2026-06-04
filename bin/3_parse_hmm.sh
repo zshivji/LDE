@@ -17,7 +17,7 @@
 ## /SBATCH -e slurm.%N.%j.err # STDERR
 
 eval "$(conda shell.bash hook)"
-conda activate /home/zshivji/miniconda3/envs/parse_hmm
+conda activate /resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm/
 
 echo "====================================================="
 echo "Start Time  : $(date)"
@@ -25,23 +25,23 @@ echo "Job ID/Name : $SLURM_JOBID / $SLURM_JOB_NAME"
 echo "======================================================"
 echo ""
 
-python Parse_hmm_results.py --hits "../results/hmmsearch_results/archaea/*.out" --outdir ../results/archaea
+python Parse_hmm_results.py --hits "../results/hmmsearch_results/archaea/*.out" --outdir ../results/hmmsearch_results/hits_archaea
 
 echo "Found hits!"
 
-python Parse_tophits.py --hits ../results/archaea/hits.feather --outdir ../results/archaea
+python Parse_tophits.py --hits ../results/hmmsearch_results/hits_archaea.feather --outdir ../results/hmmsearch_results/MDH_archaea
 
-echo "Found nif!"
+echo "Found MDH!"
 
 echo "Archaea done!"
 
-python Parse_hmm_results.py --hits "../results/hmmsearch_results/bacteria/*.out" --outdir ../results/bacteria
+python Parse_hmm_results.py --hits "../results/hmmsearch_results/bacteria/*.out" --outdir ../results/hmmsearch_results/hits_bacteria
 
 echo "Found hits!"
 
-python Parse_tophits.py --hits ../results/bacteria/hits.feather --outdir ../results/bacteria
+python Parse_tophits.py --hits ../results/hmmsearch_results/hits_bacteria.feather --outdir ../results/hmmsearch_results/MDH_bacteria
 
-echo "Found nif!"
+echo "Found MDH!"
 
 echo "Bacteria done!"
 

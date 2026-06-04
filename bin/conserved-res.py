@@ -11,10 +11,15 @@ from Bio.SeqRecord import SeqRecord
 from cluster_pos import cluster_pos
 from help_functions import load_nif
 
-def check_gene(gene, ref_seq, important_residues, passing_score, p=False):
-    
-    alignment = AlignIO.read(f"../results/fasta_splits/{gene}.aln", "fasta")
+def check_gene(gene, ref_seq, important_residues, residue_scores, passing_score, p=False):
+    if len(important_residues) != len(residue_scores):
+        raise ValueError(
+            f"{gene}: residues and residue_scores must have the same length "
+            f"({len(important_residues)} != {len(residue_scores)})"
+        )
 
+    residue_to_score = dict(zip(important_residues, residue_scores))
+    alignment = AlignIO.read(f"{gene}", "fasta")
     for record in alignment:
         if ref_seq in record.description:
             aln = record.seq
@@ -24,6 +29,7 @@ def check_gene(gene, ref_seq, important_residues, passing_score, p=False):
     residue_to_alignment = {}
     residue_idx = 0  # index in original (ungapped) sequence
     col2res = {}
+    col2score = {}
 
     for aln_idx, char in enumerate(aln):
         if char != '-':
@@ -31,6 +37,7 @@ def check_gene(gene, ref_seq, important_residues, passing_score, p=False):
             if residue_idx in important_residues:
                 residue_to_alignment[residue_idx] = aln_idx
                 col2res[aln_idx] = aln[aln_idx]
+                col2score[aln_idx] = residue_to_score[residue_idx]
                 
             # early stop if we've found everything
             if len(residue_to_alignment) == len(important_residues):
@@ -57,23 +64,19 @@ def check_gene(gene, ref_seq, important_residues, passing_score, p=False):
         score = 0
         for col in residue_to_alignment.values():
             if row[col] == aln[col]:
-                score += 2
-                if aln[col] == 'C': # higher weight for correct C
-                    score += 1
-            elif aln[col] == 'C': # if ref seq is C, must also be C
-                continue
+                score += 1 + col2score[col]
             elif row[col] != '-': # greater penalty for gap than incorrect residue
                 score += 1
         if score >= passing_score:
             return score
         else:
             return np.nan
-        #return score
 
     pssm['score'] = pssm.apply(check_res, axis = 1)
     pssm.dropna(subset = ['score'], inplace = True)
     pssm.rename(columns=col2res, inplace=True)
-
+    pssm['LDE'] = pssm.apply(lambda x: 1 if x.iloc[11] == 'D' else 0, axis=1)
+    print(pssm)
     return pssm
 
 print("Checking for conserved residues...", flush=True)
@@ -81,7 +84,7 @@ print("Checking for conserved residues...", flush=True)
 nif = load_nif(update_index = ['GenomeID']) # load nif dataframe
 
 # read json
-config = json.load(open('nif-config.json', 'r'))
+config = json.load(open('LDE-config.json', 'r'))
 
 # performed conserved residue matching
 all_genes_checked = {}
@@ -95,15 +98,18 @@ for gene in config:
     # load json parameters
     ref_seq = config[gene]['ref_gene']
     important_residues = config[gene]['residues']
+    residue_scores = config[gene].get('residue_scores', config[gene].get('reside_scores'))
+    if residue_scores is None:
+        residue_scores = [1] * len(important_residues)
     passing_score = config[gene]['passing_score']
 
     # initialize dataframe
-    checked = check_gene(f'../results/fasta_splits/{gene}_split.00001', ref_seq, important_residues, passing_score, p=True)
+    checked = check_gene(f'../results/fasta_splits/{gene}_split.001.aln', ref_seq, important_residues, residue_scores, passing_score, p=True)
 
-    for file in glob.glob(f'../results/fasta_splits/{gene}_split.000*.aln'):
-        if file == f'../results/fasta_splits/{gene}_split.00001.aln':
+    for file in glob.glob(f'../results/fasta_splits/{gene}_split.*.aln'):
+        if file == f'../results/fasta_splits/{gene}_split.001.aln':
             continue
-        new = check_gene(file[:-4], ref_seq, important_residues, passing_score)
+        new = check_gene(file, ref_seq, important_residues, residue_scores, passing_score)
         checked = pd.concat([checked, new])
 
     checked.drop_duplicates(subset = ['hit'], inplace = True)
@@ -126,21 +132,21 @@ nif['residue_match'] = ''
 nif.reset_index(level='Gene', inplace = True)
 nif.sort_index(inplace = True)
 
-# update residue match column in nif df
-for gene in 'HDKENB':
-    for genome, cols in eval(f"all_genes_checked[nif{gene}].iterrows()"):
-        nif.loc[(genome[0], genome[1]), 'residue_match'] = "nif" + gene
-    
-    # filter to get hits that passed residue matching
-    gene = f"nif{gene}"
-    maxl = config[gene]['min-length']
-    minl = config[gene]['max-length']
-    exec(f"{gene} = nif[((nif.residue_match == '{gene}') & (nif.Gene == '{gene}') & (nif['Alignment Length'] >= {minl}) & (nif['Alignment Length'] < {maxl}))]", globals())
+## update residue match column in nif df
+#for gene in config:
+#    for genome, cols in eval(f"all_genes_checked.iterrows()"):
+#        nif.loc[(genome[0], genome[1]), 'residue_match'] = gene
+#    
+#    # filter to get hits that passed residue matching
+#    gene = f"{gene}"
+#    maxl = config[gene]['min-length']
+#    minl = config[gene]['max-length']
+#    exec(f"{gene} = nif[((nif.residue_match == '{gene}') & (nif.Gene == '{gene}') & (nif['Alignment Length'] >= {minl}) & (nif['Alignment Length'] < {maxl}))]", globals())
 
-nif = pd.concat([nifH, nifD, nifK, nifE, nifN, nifNB, nifB])
-nif.sort_index(inplace = True)
+#nif = pd.concat([nifH, nifD, nifK, nifE, nifN, nifNB, nifB])
+#nif.sort_index(inplace = True)
 
-nif.to_csv(f'../results/tmp/nif_rescheck_nofilt.csv')
+nif.to_csv(f'../results/tmp/pqq_rescheck_nofilt_{passing_score}.csv')
 
 #### END OF CONSERVED RESIDUE CHECKING, BELOW IS VALIDATion/BACKUP CODE ####
 
@@ -150,23 +156,23 @@ nif.to_csv(f'../results/tmp/nif_rescheck_nofilt.csv')
 
 #backup check --> likely don't need this since we're reducing alignments to 200 seq per file
 #get seq that failed checks
-print('getting failed sequences', flush=True)
+#print('getting failed sequences', flush=True)
 
-seqs = []
+#seqs = []
 
-for gene in 'DKEN':
+#for gene in config:
 
     # for each gene, get all hmm hit acc
-    result = list(SeqIO.parse(f"../results/fasta_splits/nif{gene}.fasta", "fasta"))
-    hit = [record.description.split(" ")[-1] for record in result]
+#    result = list(SeqIO.parse(f"../results/tmp/{gene}.fasta", "fasta"))
+#    hit = [record.description.split(" ")[-1] for record in result]
 
     # get seq that failed check
-    for record, acc in zip(result, hit):
-        if acc not in eval(f"list(nif{gene}_checked.index.get_level_values(1).unique())"):
-            seq = SeqRecord(Seq(record.seq), id=record.id, description=acc)
-            seqs.append(record)
+#    for record, acc in zip(result, hit):
+#        if acc not in eval(f"list({gene}_checked.index.get_level_values(1).unique())"):
+#            seq = SeqRecord(Seq(record.seq), id=record.id, description=acc)
+#            seqs.append(record)
 
-print(str(len(seqs)) + " seqs failed nifDKEN checks", flush=True) # counting how many failed pre/post 2026 edits
+#print(str(len(seqs)) + " seqs failed nifDKEN checks", flush=True) # counting how many failed pre/post 2026 edits
 
 # # Write the records to a FASTA file
 # with open(f"../results/fasta_splits/nifDKEN.fasta", "w") as output_handle:

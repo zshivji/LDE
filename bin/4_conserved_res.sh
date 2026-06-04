@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --time=04:04:00   # walltime #8hrs?
+#SBATCH --time=08:04:00   # walltime #8hrs?
 #SBATCH --ntasks=4   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 40GB   # memory per CPU core
 #SBATCH -J aln_hits   # job name
-##SBATCH --dependency=afterok:48728583
+##SBATCH --dependency=afterok:63915743
 
 # Notify at the beginning, end of job and on failure.
 #SBATCH --mail-user=zshivji@caltech.edu   # email address
@@ -28,7 +28,10 @@ echo ""
 
 python aln_nif_hits.py #--reload_fasta
 
-python conserved-res.py
+#python conserved-res.py
+
+#python final-fasta-export.py
+
 
 echo ""
 echo "======================================================"

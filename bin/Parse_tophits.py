@@ -62,12 +62,12 @@ def parse_tophits(hits_path: Path, outdir: Path) -> None:
     hits.drop_duplicates(inplace = True)
 
     # filter for genome, contig with at least 3 unique genes (nifHDKENB)
-    filtered_df = hits.groupby(level=['GenomeID', 'contig']).filter(lambda x: x['Gene'].nunique() >= 3)
+    filtered_df = hits.copy() #hits.groupby(level=['GenomeID', 'contig']).filter(lambda x: x['Gene'].nunique() >= 3)
 
     # make sure these 3 unique genes are not the same hit (i.e. not the same gene in reference genome)
-    filtered_df2 = filtered_df.groupby(level=['GenomeID', 'contig']).filter(lambda x: x['Hit'].nunique() >= 3)
+    filtered_df2 = filtered_df.copy() #.groupby(level=['GenomeID', 'contig']).filter(lambda x: x['Hit'].nunique() >= 3)
 
-    genomes_to_keep = pd.DataFrame(columns = filtered_df2.columns)
+    dfs = []
     # iterate through each genome and contig
     for genome in filtered_df2.index.get_level_values(0).unique(): # iterate through each genome
         for contig in filtered_df2.loc[genome].index.get_level_values(0).unique(): # iterate through each contig
@@ -75,26 +75,28 @@ def parse_tophits(hits_path: Path, outdir: Path) -> None:
             tmp = filtered_df2.loc[(genome, contig)]
 
             # only keep numbers that have clusters >= 3
-            pos_clusters = cluster_pos(tmp.Hit.unique())
+#            pos_clusters = cluster_pos(tmp.Hit.unique())
 
             # for each cluster, find the best combination of genes (min e-value)
-            for cl in pos_clusters:
-                pos = [contig + '_' + str(p) for p in cl]
-                no_pos = len(pos)
+#            for cl in pos_clusters:
+#                pos = [contig + '_' + str(p) for p in cl]
+#                no_pos = len(pos)
                 
                 # need at least 3 genes to continue
-                if no_pos < 3:
-                    continue
+#                if no_pos < 3:
+#                    continue
 
                 # only keep hits that are in the cluster
-                tmp2 = tmp[tmp.Hit.isin(pos)].reset_index()
+            tmp2 = tmp.copy() #tmp[tmp.Hit.isin(pos)].reset_index()
+            dfs.append(tmp2)
 
-                genomes_to_keep = pd.concat([genomes_to_keep, tmp2])
+    genomes_to_keep = pd.concat(dfs, ignore_index = False)
+    genomes_to_keep = genomes_to_keep.reset_index()
     
     # expot
     outdir.mkdir(parents=True, exist_ok=True)
-    genomes_to_keep.to_feather(outdir / "tophits.feather")
-    genomes_to_keep.to_csv(outdir / "tophits.csv", index=False)
+    genomes_to_keep.to_feather(str(outdir) + ".feather")
+    genomes_to_keep.to_csv(str(outdir) + ".csv", index=False)
 
 
 def main() -> None:

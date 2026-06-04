@@ -38,11 +38,11 @@ echo "Archaea completed"
 #HMM search on GTDB bacteria
 for file in ../../diazoDB-HPC/protein_faa_reps/bacteria/*; do
         f="${file##*/}"
-        hmmsearch ../HMMs/methanol_dehydrogenase_pqq_xoxF_mxaF.hmm "$file" >> "../results/hmmsearch_results/bacteria/${f%.faa}_nif.out"
+        hmmsearch ../HMMs/methanol_dehydrogenase_pqq_xoxF_mxaF.hmm "$file" >> "../results/hmmsearch_results/bacteria/${f%.faa}_MDH.out"
 done
 
 for file in ../results/hmmsearch_results/bacteria/*; do
-        chgrp hpc_enviromics ../results/hmmsearch_results/bacteria/"$file"
+        chgrp hpc_enviromics "$file"
 done
 
 echo "Bacteria completed"

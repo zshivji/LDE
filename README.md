@@ -29,7 +29,7 @@ Automated annotation and curation of LDEs genes using profile hidden Markov mode
 
 + **Parse_tophits.py**
 
-+ **aln_nif_hits.py**
++ **aln_nif_hits.py** 
 
 + **cluster_pos.py**
 
@@ -44,3 +44,11 @@ Automated annotation and curation of LDEs genes using profile hidden Markov mode
 + **operon-org-plot.py**
 
 
+ PDB residues: [76, 124, 125, 128, 130, 174, 189, 190, 191, 192, 258, 276, 318, 320, 345, 416, 494, 557, 558]
+                E.   C.   C.   V.   R.   T.   S.   G.   G.   E.   W.   N.   D.   D.   R.   D.   W.   G.   W
+CDD residues: [76, 124, 125, 128, 130, 174, 189, 190, 192, 256, 258, 276, 280, 320, 345, 416, 494, 558] # missing D-x-D
+                E.   C.   C.   V.   R.   T.  S.   G.   E.   T.   W.   N.   W.   D.   R.   D.   W.   W
+custom residues: [76, 124, 125, 128, 130, 174, 190, 192, 258, 276, 318, 320, 345, 494, 558]
+                  E.   C.   C.   V.   R.   T.   G.   E.   W.   N.   D.   D.   R.   W.   W
+
+W G W --> W not conserved in all MDH, 2nd XoxF in M. extorquens lacks LT962688.1_4238 but G is conserved
