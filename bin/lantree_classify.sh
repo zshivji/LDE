@@ -2,17 +2,17 @@
 
 # Submit with runner/runner.py, not by hand.
 # Required env vars:
-#   DIAZODB_JOB_ID   - API job UUID
-#   DIAZODB_INPUT    - input FASTA path in the job workspace
-#   DIAZODB_OUTDIR   - output directory for intermediate files
-#   DIAZODB_OUTPUT   - final CSV/HTML/PDF path to post back to the API
+#   LANTREE_JOB_ID   - API job UUID
+#   LANTREE_INPUT    - input FASTA path in the job workspace
+#   LANTREE_OUTDIR   - output directory for intermediate files
+#   LANTREE_OUTPUT   - final CSV/HTML/PDF path to post back to the API
 
 #SBATCH --time=00:10:00
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=1 
 #SBATCH --mem=4GB
-#SBATCH -J diazodb_classify
+#SBATCH -J lantree_classify
 #SBATCH -o slurm-%x-%j.out
 #SBATCH -e slurm-%x-%j.err
 
@@ -22,36 +22,36 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Prefer env vars injected by runner; fall back to positional args if provided.
-DIAZODB_JOB_ID="${DIAZODB_JOB_ID:-${1:-}}"
-INPUT_FASTA="${DIAZODB_INPUT:-${2:-}}"
-OUTDIR="${DIAZODB_OUTDIR:-${3:-}}"
-FINAL_OUTPUT="${DIAZODB_OUTPUT:-${4:-}}"
+LANTREE_JOB_ID="${LANTREE_JOB_ID:-${1:-}}"
+INPUT_FASTA="${LANTREE_INPUT:-${2:-}}"
+OUTDIR="${LANTREE_OUTDIR:-${3:-}}"
+FINAL_OUTPUT="${LANTREE_OUTPUT:-${4:-}}"
 
-if [[ -z "$DIAZODB_JOB_ID" || -z "$INPUT_FASTA" || -z "$OUTDIR" || -z "$FINAL_OUTPUT" ]]; then
-  echo "Missing required inputs. Provide DIAZODB_JOB_ID, DIAZODB_INPUT, DIAZODB_OUTDIR, DIAZODB_OUTPUT (or positional args)." >&2
+if [[ -z "$LANTREE_JOB_ID" || -z "$INPUT_FASTA" || -z "$OUTDIR" || -z "$FINAL_OUTPUT" ]]; then
+  echo "Missing required inputs. Provide LANTREE_JOB_ID, LANTREE_INPUT, LANTREE_OUTDIR, LANTREE_OUTPUT (or positional args)." >&2
   exit 2
 fi
 
 mkdir -p "$OUTDIR"
 
-HMMSEARCH_BIN="${DIAZODB_HMMSEARCH_BIN:-hmmsearch}"
-PRODIGAL_BIN="${DIAZODB_PRODIGAL_BIN:-prodigal}"
-USE_PRODIGAL="${DIAZODB_USE_PRODIGAL:-false}"
+HMMSEARCH_BIN="${LANTREE_HMMSEARCH_BIN:-hmmsearch}"
+PRODIGAL_BIN="${LANTREE_PRODIGAL_BIN:-prodigal}"
+USE_PRODIGAL="${LANTREE_USE_PRODIGAL:-false}"
 
 QUERY_FASTA="$INPUT_FASTA"
-HMM_DB="$REPO_ROOT/HMMs/combined_nif_03192026.hmm"
+HMM_DB="$REPO_ROOT/analysis/HMMs/methanol_dehydrogenase_pqq_xoxF_mxaF.hmm"
 
 echo "====================================================="
 echo "Start Time  : $(date)"
-echo "Job ID      : $DIAZODB_JOB_ID"
+echo "Job ID      : $LANTREE_JOB_ID"
 echo "Input       : $INPUT_FASTA"
 echo "Output      : $FINAL_OUTPUT"
 echo "Slurm ID    : ${SLURM_JOBID:-local}"
 echo "====================================================="
 
-if [[ -n "${DIAZODB_CONDA_ENV:-}" ]]; then
+if [[ -n "${LANTREE_CONDA_ENV:-}" ]]; then
   eval "$(conda shell.bash hook)"
-  conda activate "$DIAZODB_CONDA_ENV"
+  conda activate "$LANTREE_CONDA_ENV"
 fi
 
 module load mafft/7.505-gcc-13.2.0-nklkvtc
@@ -79,11 +79,11 @@ test -s "$FINAL_OUTPUT"
 
 
 #SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-#PIPELINE_SCRIPT="${DIAZODB_PIPELINE_SCRIPT:-$SCRIPT_DIR/diazodb_classify_pipeline.sh}"
+#PIPELINE_SCRIPT="${LANTREE_PIPELINE_SCRIPT:-$SCRIPT_DIR/LANTREE_classify_pipeline.sh}"
 
-#bash "$PIPELINE_SCRIPT" "$DIAZODB_INPUT" "$DIAZODB_OUTDIR" "$DIAZODB_OUTPUT"
+#bash "$PIPELINE_SCRIPT" "$LANTREE_INPUT" "$LANTREE_OUTDIR" "$LANTREE_OUTPUT"
 
-#test -s "$DIAZODB_OUTPUT"
+#test -s "$LANTREE_OUTPUT"
 
 echo "====================================================="
 echo "End Time    : $(date)"
