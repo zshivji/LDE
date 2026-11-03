@@ -76,7 +76,6 @@ def check_gene(gene, ref_seq, important_residues, residue_scores, passing_score,
     pssm.dropna(subset = ['score'], inplace = True)
     pssm.rename(columns=col2res, inplace=True)
     pssm['LDE'] = pssm.apply(lambda x: 1 if x.iloc[11] == 'D' else 0, axis=1)
-    print(pssm)
     return pssm
 
 print("Checking for conserved residues...", flush=True)
@@ -84,7 +83,7 @@ print("Checking for conserved residues...", flush=True)
 nif = load_nif(update_index = ['GenomeID']) # load nif dataframe
 
 # read json
-config = json.load(open('LDE-config.json', 'r'))
+config = json.load(open('/resnick/groups/enviromics/zahra/LDE/bin/LDE-config.json', 'r'))
 
 # performed conserved residue matching
 all_genes_checked = {}
@@ -104,10 +103,10 @@ for gene in config:
     passing_score = config[gene]['passing_score']
 
     # initialize dataframe
-    checked = check_gene(f'../results/fasta_splits/{gene}_split.001.aln', ref_seq, important_residues, residue_scores, passing_score, p=True)
+    checked = check_gene(f'/resnick/groups/enviromics/zahra/LDE/results/fasta_splits/{gene}_split.001.aln', ref_seq, important_residues, residue_scores, passing_score, p=True)
 
-    for file in glob.glob(f'../results/fasta_splits/{gene}_split.*.aln'):
-        if file == f'../results/fasta_splits/{gene}_split.001.aln':
+    for file in glob.glob(f'/resnick/groups/enviromics/zahra/LDE/results/fasta_splits/{gene}_split.*.aln'):
+        if file == f'/resnick/groups/enviromics/zahra/LDE/results/fasta_splits/{gene}_split.001.aln':
             continue
         new = check_gene(file, ref_seq, important_residues, residue_scores, passing_score)
         checked = pd.concat([checked, new])
@@ -121,6 +120,7 @@ for gene in config:
 
     print(str(len(checked)) + f" {gene} seqs")
 
+    #all_genes_checked[gene].to_csv(f'/resnick/groups/enviromics/MSH/metaG/LDE/results/tmp/pqq_rescheck_nofilt_{passing_score}_checked.csv')
 #### EXPORT
 
 # reload nif dataframe
@@ -131,22 +131,27 @@ nif['residue_match'] = ''
 
 nif.reset_index(level='Gene', inplace = True)
 nif.sort_index(inplace = True)
-
-## update residue match column in nif df
-#for gene in config:
-#    for genome, cols in eval(f"all_genes_checked.iterrows()"):
-#        nif.loc[(genome[0], genome[1]), 'residue_match'] = gene
-#    
-#    # filter to get hits that passed residue matching
-#    gene = f"{gene}"
-#    maxl = config[gene]['min-length']
-#    minl = config[gene]['max-length']
-#    exec(f"{gene} = nif[((nif.residue_match == '{gene}') & (nif.Gene == '{gene}') & (nif['Alignment Length'] >= {minl}) & (nif['Alignment Length'] < {maxl}))]", globals())
+print(nif)
+# update residue match column in nif df
+for gene in config:
+    for genome, cols in eval(f"all_genes_checked[gene].iterrows()"):
+        try:
+            nif.loc[(genome[0], genome[1]), 'residue_match'] = gene
+            nif.loc[(genome[0], genome[1]), 'LDE'] = all_genes_checked[gene].loc[(genome[0], genome[1]), 'LDE']    
+        except:
+            continue
+ # filter to get hits that passed residue matching
+    gene = f"{gene}"
+    maxl = config[gene]['min-length']
+    minl = config[gene]['max-length']
+    print(gene, maxl, minl)
+    exec(f"{gene} = nif[((nif.residue_match == '{gene}') & (nif.Gene == '{gene}'))] # & (nif['Alignment Length'] >= {minl}) & (nif['Alignment Length'] < {maxl}))]", globals())
+    print(pqq)
 
 #nif = pd.concat([nifH, nifD, nifK, nifE, nifN, nifNB, nifB])
-#nif.sort_index(inplace = True)
-
-nif.to_csv(f'../results/tmp/pqq_rescheck_nofilt_{passing_score}.csv')
+nif = pqq.copy()
+nif.sort_index(inplace = True)
+nif.to_csv(f'/resnick/groups/enviromics/zahra/LDE/results/tmp/pqq_rescheck_nofilt_{passing_score}.csv')
 
 #### END OF CONSERVED RESIDUE CHECKING, BELOW IS VALIDATion/BACKUP CODE ####
 

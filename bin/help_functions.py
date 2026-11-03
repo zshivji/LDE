@@ -2,9 +2,11 @@ import pandas as pd
 import numpy as np
 import glob
 
-def load_nif(update_index, archaea_only = False):
+def load_nif(update_index, archaea_only = False, metaG = False):
     if archaea_only:
         nif = pd.read_feather('../results/hmmsearch_results/MDH_archaea.feather')
+    elif metaG:
+        nif = pd.read_feather('/resnick/groups/enviromics/zahra/LDE/results/hmmsearch_results/MDH.feather')
     else:
         nif_archaea = pd.read_feather('../results/hmmsearch_results/MDH_archaea.feather')
         nif_bacteria = pd.read_feather('../results/hmmsearch_results/MDH_bacteria.feather')

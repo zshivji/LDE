@@ -1,12 +1,14 @@
 # Ignore
 
 .DS_STORE
+.vscode/
 
 Untracked/
 
 bin/tmp/**
 bin/slurm**
 bin/old_slurm/**
+bin/__pycache__/
 
 # DVC tracked
 

@@ -100,9 +100,10 @@ def parse_hits(hits_path: Path, outdir: Path) -> None:
         # RegEx for the GenomeID (double checking that file is really a genome)
         try:
             s = r'([\w]+_[\w]+_[\d]+\.[\d])'
-            genomeID = re.search(s, file).group()
+            genomeID = re.search(s, file).groups()
         except:
-            continue
+            genomeID = str(Path(file).stem)[:-4]
+            #continue
 
         # Parse file using SearchIO/HmmerIO
         for result in SearchIO.parse(file, 'hmmer3-text'):

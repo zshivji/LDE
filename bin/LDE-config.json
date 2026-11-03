@@ -7,6 +7,6 @@
     "residue_scores": [1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 2, 1, 2],
     "passing_score": 28,
     "min-length": 300,
-    "max-length": null
+    "max-length": 1000
   }
 }
