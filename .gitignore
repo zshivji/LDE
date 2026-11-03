@@ -9,6 +9,7 @@ bin/tmp/**
 bin/slurm**
 bin/old_slurm/**
 bin/__pycache__/
+bin/logs/
 
 # DVC tracked
 
@@ -26,3 +27,6 @@ operon-org/input-fastas/
 operon-org/microbeannotator/
 
 bin/__pycache__/cluster_pos.cpython-312.pyc
+
+# Untracked
+AFDB.fasta

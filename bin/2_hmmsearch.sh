@@ -1,34 +1,33 @@
 #!/bin/bash
 
-#SBATCH --time=18:10:00   # walltime --> 15 hrs for both Archaea, Bacteria
+#SBATCH --time=30:10:00   # walltime --> 15 hrs for both Archaea, Bacteria
 #SBATCH --ntasks=4   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 4GB   # memory per CPU core
-#SBATCH -J hmmsearch.e%j   # job name
+#SBATCH --job-name=hmmsearch   # job name
+#SBATCH -o logs/%x-%j.out # STDOUT
 
-# Notify at the beginning, end of job and on failure.
-#SBATCH --mail-user=zshivji@caltech.edu   # email address
-#SBATCH --mail-type=BEGIN
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
+echo "====================================================="
+echo "Start Time  : $(date)"
+echo "Submit Dir  : $SLURM_SUBMIT_DIR"
+echo "Job ID/Name : $SLURM_JOBID / $SLURM_JOB_NAME"
+echo "Node List   : $SLURM_JOB_NODELIST"
+echo "Num Tasks   : $SLURM_NTASKS total [$SLURM_NNODES nodes @ $SLURM_CPUS_ON_NODE CPUs/node]"
+echo "======================================================"
+echo ""
 
-## /SBATCH -p general # partition (queue)
-## /SBATCH -o slurm.%N.%j.out # STDOUT
-## /SBATCH -e slurm.%N.%j.err # STDERR
+GTDB_REP_DIR="/resnick/groups/enviromics/zahra/diazoDB-HPC/protein_faa_reps_232"
 
 eval "$(conda shell.bash hook)"
 conda activate /resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm
 
-echo "====================================================="
-echo "Start Time  : $(date)"
-echo "Job ID/Name : $SLURM_JOBID / $SLURM_JOB_NAME"
-echo "======================================================"
-echo ""
-
 #HMM search on GTDB archaea
-for file in ../../diazoDB-HPC/protein_faa_reps/archaea/*; do
+for file in "$GTDB_REP_DIR"/archaea/*; do
         f="${file##*/}"
-        hmmsearch ../HMMs/methanol_dehydrogenase_pqq_xoxF_mxaF.hmm "$file" >> "../results/hmmsearch_results/archaea/${f%.faa}_MDH.out"
+        hmmsearch \
+        --domtblout "../results/hmmsearch_results/archaea/${f%.faa}_ADH.domtblout" \
+        -o "../results/hmmsearch_results/archaea/${f%.faa}_ADH.out" \
+        ../HMMs/PQQ_ADH.hmm "$file"
 done
 
 chgrp hpc_enviromics ../results/hmmsearch_results/archaea/*
@@ -36,9 +35,12 @@ chgrp hpc_enviromics ../results/hmmsearch_results/archaea/*
 echo "Archaea completed"
 
 #HMM search on GTDB bacteria
-for file in ../../diazoDB-HPC/protein_faa_reps/bacteria/*; do
+for file in "$GTDB_REP_DIR"/bacteria/*; do
         f="${file##*/}"
-        hmmsearch ../HMMs/methanol_dehydrogenase_pqq_xoxF_mxaF.hmm "$file" >> "../results/hmmsearch_results/bacteria/${f%.faa}_MDH.out"
+        hmmsearch \
+        --domtblout "../results/hmmsearch_results/bacteria/${f%.faa}_ADH.domtblout" \
+        -o "../results/hmmsearch_results/bacteria/${f%.faa}_ADH.out" \
+        ../HMMs/PQQ_ADH.hmm "$file"
 done
 
 for file in ../results/hmmsearch_results/bacteria/*; do
@@ -46,6 +48,9 @@ for file in ../results/hmmsearch_results/bacteria/*; do
 done
 
 echo "Bacteria completed"
+
+# HMM search on AFDB
+hmmsearch --domtblout ../results/hmmsearch_results/AFDB_ADH.domtblout -o ../results/hmmsearch_results/AFDB_ADH.out ../HMMs/PQQ_ADH.hmm ../AFDB.fasta
 
 echo ""
 echo "======================================================"

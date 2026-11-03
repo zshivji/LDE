@@ -5,17 +5,8 @@
 #SBATCH --ntasks=4   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 4GB   # memory per CPU core
-#SBATCH -J mafft.e%j   # job name
-
-# Notify at the beginning, end of job and on failure.
-#SBATCH --mail-user=zshivji@caltech.edu   # email address
-#SBATCH --mail-type=BEGIN
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-
-## /SBATCH -p general # partition (queue)
-## /SBATCH -o slurm.%N.%j.out # STDOUT
-## /SBATCH -e slurm.%N.%j.err # STDERR
+#SBATCH --job-name=hmm_seed   # job name
+#SBATCH -o logs/%x-%j.out # STDOUT
 
 echo "====================================================="
 echo "Start Time  : $(date)"
@@ -26,22 +17,30 @@ echo "Num Tasks   : $SLURM_NTASKS total [$SLURM_NNODES nodes @ $SLURM_CPUS_ON_NO
 echo "======================================================"
 echo ""
 
-module load mafft/7.505-gcc-13.2.0-nklkvtc
-
-# cluster
-#mmseqs easy-cluster ../input-files/nifH_merged_len200.fasta ../input-files/clustered_nifH tmp --min-seq-id 0.9 -c 0.8 --cov-mode 0
-
-# align nif sequences
-#mafft --auto --thread 4 ../input-files/clustered_nifH_rep_seq.fasta > ../alignments/nifH-03292025.faa
-
 eval "$(conda shell.bash hook)"
 conda activate /resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm
 
+module load mafft/7.505-gcc-13.2.0-nklkvtc
+
+# combine seed sequences
+cat ../HMM_seeds/ExaF.faa ../HMM_seeds/XoxF.faa > ../HMM_seeds/combined_ExaF_XoxF.faa
+
+# align sequences
+mafft --auto --thread 4 ../HMM_seeds/combined_ExaF_XoxF.faa > ../alignments/combined_ExaF_XoxF.aln
+
 # build hmm profiles
-#hmmbuild ../HMMs/nifH_03292025.hmm ../alignments/nifH-03292025.faa
+hmmbuild ../HMMs/combined_ExaF_XoxF.hmm ../alignments/combined_ExaF_XoxF.aln
 
 # combine hmm profiles
-cat ../HMMs/*.hmm > ../HMMs/combined_nif_03192026.hmm
+#cat ../HMMs/*.hmm > ../HMMs/PQQ_ADH.hmm
+
+# # convert Banfield HMM to HMMER3 format (only need to do this once)
+# hmmconvert ../HMMs/methanol_dehydrogenase_pqq_xoxF_mxaF.hmm \
+#   > /tmp/methanol_dehydrogenase.hmm
+
+# cat ../HMMs/combined_ExaF_XoxF.hmm \
+#     /tmp/methanol_dehydrogenase.hmm \
+#     > ../HMMs/PQQ_ADH.hmm
 
 echo ""
 echo "======================================================"
