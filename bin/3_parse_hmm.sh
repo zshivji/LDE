@@ -1,20 +1,12 @@
 #!/bin/bash
 
-#SBATCH --time=2:00:00   # walltime
+#SBATCH --time=1:00:00   # walltime
 #SBATCH --ntasks=1   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 4GB   # memory per CPU core
-#SBATCH -J parse_hmm.e%j   # job name
-
-# Notify at the beginning, end of job and on failure.
-#SBATCH --mail-user=zshivji@caltech.edu   # email address
-#SBATCH --mail-type=BEGIN
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-
-## /SBATCH -p general # partition (queue)
-## /SBATCH -o slurm.%N.%j.out # STDOUT
-## /SBATCH -e slurm.%N.%j.err # STDERR
+#SBATCH --job-name=parse-hmm   # job name
+#SBATCH -o logs/%x-%j.out # STDOUT
+##SBATCH --dependency=afterok:6232361
 
 eval "$(conda shell.bash hook)"
 conda activate /resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm/
@@ -25,25 +17,25 @@ echo "Job ID/Name : $SLURM_JOBID / $SLURM_JOB_NAME"
 echo "======================================================"
 echo ""
 
-python Parse_hmm_results.py --hits "../results/hmmsearch_results/archaea/*.out" --outdir ../results/hmmsearch_results/hits_archaea
+DIR="/resnick/groups/enviromics/zahra/LDE/results/hmmsearch_results"
 
-echo "Found hits!"
+# --refine added to filter hits based on min gene in gene_range (don't need these params unless --refine specified)
 
-python Parse_tophits.py --hits ../results/hmmsearch_results/hits_archaea.feather --outdir ../results/hmmsearch_results/MDH_archaea
+python parse_hmm.py \
+	--hits "$DIR"/archaea/ \
+	--outdir "$DIR"/archaea \
+    --min_genes 1 \
+    --gene_range 15
 
-echo "Found MDH!"
+python parse_hmm.py \
+	--hits "$DIR"/bacteria/ \
+	--outdir "$DIR"/bacteria \
+    --min_genes 1 \
+    --gene_range 15
 
-echo "Archaea done!"
-
-python Parse_hmm_results.py --hits "../results/hmmsearch_results/bacteria/*.out" --outdir ../results/hmmsearch_results/hits_bacteria
-
-echo "Found hits!"
-
-python Parse_tophits.py --hits ../results/hmmsearch_results/hits_bacteria.feather --outdir ../results/hmmsearch_results/MDH_bacteria
-
-echo "Found MDH!"
-
-echo "Bacteria done!"
+python parse_hmm.py \
+    --hits "$DIR"/AFDB/ \
+    --outdir "$DIR"/AFDB
 
 echo ""
 echo "======================================================"

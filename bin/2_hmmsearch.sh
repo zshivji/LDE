@@ -22,6 +22,9 @@ eval "$(conda shell.bash hook)"
 conda activate /resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm
 
 #HMM search on GTDB archaea
+rm -R ../results/hmmsearch_results/archaea/
+mkdir -p ../results/hmmsearch_results/archaea/
+
 for file in "$GTDB_REP_DIR"/archaea/*; do
         f="${file##*/}"
         hmmsearch \
@@ -35,6 +38,9 @@ chgrp hpc_enviromics ../results/hmmsearch_results/archaea/*
 echo "Archaea completed"
 
 #HMM search on GTDB bacteria
+rm -R ../results/hmmsearch_results/bacteria/
+mkdir -p ../results/hmmsearch_results/bacteria/
+
 for file in "$GTDB_REP_DIR"/bacteria/*; do
         f="${file##*/}"
         hmmsearch \
@@ -50,7 +56,9 @@ done
 echo "Bacteria completed"
 
 # HMM search on AFDB
-hmmsearch --domtblout ../results/hmmsearch_results/AFDB_ADH.domtblout -o ../results/hmmsearch_results/AFDB_ADH.out ../HMMs/PQQ_ADH.hmm ../AFDB.fasta
+#hmmsearch --domtblout ../results/hmmsearch_results/AFDB/AFDB_ADH.domtblout -o ../results/hmmsearch_results/AFDB/AFDB_ADH.out ../HMMs/PQQ_ADH.hmm ../AFDB_ungapped.fasta
+
+echo "AFDB completed"
 
 echo ""
 echo "======================================================"

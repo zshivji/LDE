@@ -4,6 +4,7 @@
 .vscode/
 
 Untracked/
+results/hmmsearch_results/OLD/
 
 bin/tmp/**
 bin/slurm**
@@ -30,3 +31,4 @@ bin/__pycache__/cluster_pos.cpython-312.pyc
 
 # Untracked
 AFDB.fasta
+AFDB_ungapped.fasta
