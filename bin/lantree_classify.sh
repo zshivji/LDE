@@ -26,7 +26,7 @@ INPUT_FASTA="${LANTREE_INPUT:-${2:-}}"
 INTERMEDIATE="${LANTREE_INTERMEDIATE:-${3:-}}"
 FINAL_DIR="${LANTREE_OUTPUT:-${4:-}}"
 
-if [[ -z "$LANTREE_JOB_ID" || -z "$INPUT_FASTA" || -z "$INTERMEDIATE" || -z "$FINAL_OUTPUT" ]]; then
+if [[ -z "$LANTREE_JOB_ID" || -z "$INPUT_FASTA" || -z "$INTERMEDIATE" || -z "$FINAL_DIR" ]]; then
   echo "Missing required inputs. Provide LANTREE_JOB_ID, LANTREE_INPUT, LANTREE_INTERMEDIATE, LANTREE_OUTPUT (or positional args)." >&2
   exit 2
 fi
@@ -70,7 +70,7 @@ module load mafft/7.505-gcc-13.2.0-nklkvtc
 INPUT_STEM="$(basename "$INPUT_FASTA")"
 INPUT_STEM="${INPUT_STEM%.*}"
 SAFE_INPUT_STEM="$(printf '%s' "$INPUT_STEM" | tr -c 'A-Za-z0-9._-' '_')"
-SAFE_JOB_ID="$(printf '%s' "$DIAZODB_JOB_ID" | tr -c 'A-Za-z0-9._-' '_')"
+SAFE_JOB_ID="$(printf '%s' "$LANTREE_JOB_ID" | tr -c 'A-Za-z0-9._-' '_')"
 SAFE_INPUT_STEM="${SAFE_INPUT_STEM:-input}"
 HMM_PREFIX="${SAFE_INPUT_STEM}__job_${SAFE_JOB_ID}_nif"
 JOB_DOMTBLOUT="$JOB_HMM_DIR/${HMM_PREFIX}.domtblout"
@@ -101,18 +101,19 @@ python conserved_res.py \
   --tmp "$TMP" \
   --final_dir "$FINAL_DIR" \
   --skip_metadata \
+  --out_prefix pqq \
   --external
 
 # Create operon organization diagrams in this job's isolated workspace.
-# The classifier has already produced nif_clusters.csv and nif_final.csv in
+# The classifier has already produced pqq_clusters.csv and pqq_final.csv in
 # FINAL_DIR.  The metadata helper uses those files to select neighborhoods,
 # while MicrobeAnnotator supplies annotations for surrounding genes.
 OPERON_DIR="$INTERMEDIATE/operon-org"
 OPERON_INPUT_DIR="$OPERON_DIR/input-fastas"
 OPERON_ANNOT_DIR="$OPERON_DIR/microbeannotator"
 OPERON_METADATA="$FINAL_DIR/operon_metadata.json"
-OPERON_CLUSTERS="$FINAL_DIR/nif_clusters.csv"
-OPERON_NIF_FINAL="$FINAL_DIR/nif_final.csv"
+OPERON_CLUSTERS="$FINAL_DIR/pqq_clusters.csv"
+OPERON_NIF_FINAL="$FINAL_DIR/pqq_final.csv"
 
 log "Preparing operon FASTA inputs in $OPERON_INPUT_DIR"
 mkdir -p "$OPERON_INPUT_DIR" "$OPERON_ANNOT_DIR"
