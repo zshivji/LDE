@@ -394,47 +394,47 @@ def export_results(
         genomes_to_keep.to_csv(os.path.join(results_dir, f'{prefix}_final.csv'))
 
 
-    # get fasta sequences for each gene & export to fasta
-    os.makedirs(os.path.join(results_dir, "fastas"), exist_ok=True)
-    for gene in genomes_to_keep['gene'].unique().tolist():
-        records = []
+    # # get fasta sequences for each gene & export to fasta
+    # os.makedirs(os.path.join(results_dir, "fastas"), exist_ok=True)
+    # for gene in genomes_to_keep['gene'].unique().tolist():
+    #     records = []
 
-        for genome, hit in genomes_to_keep[genomes_to_keep.gene == gene].iterrows():
-            record = get_seq(
-                genome,
-                hit.protein,
-                id=hit.protein,
-                description=f"{genome} {hit.gene}",
-                dir=proteins_dir,
-            )
-            records.append(record)
+    #     for genome, hit in genomes_to_keep[genomes_to_keep.gene == gene].iterrows():
+    #         record = get_seq(
+    #             genome,
+    #             hit.protein,
+    #             id=hit.protein,
+    #             description=f"{genome} {hit.gene}",
+    #             dir=proteins_dir,
+    #         )
+    #         records.append(record)
                     
-        # Write the records to a FASTA file
-        with open(os.path.join(results_dir, f"fastas/{prefix}_" + gene + ".fasta"), "w") as output_handle:
-            SeqIO.write(records, output_handle, "fasta")
+    #     # Write the records to a FASTA file
+    #     with open(os.path.join(results_dir, f"fastas/{prefix}_" + gene + ".fasta"), "w") as output_handle:
+    #         SeqIO.write(records, output_handle, "fasta")
 
-        print(f"{len(records)} final {gene} hits", flush=True)
+    #     print(f"{len(records)} final {gene} hits", flush=True)
 
-    # # export csv grouped by genome, contig, operon, and cluster
-    # operons = genomes_to_keep.copy().set_index(['contig'], append=True)
-    # operons.sort_values(by=['GenomeID', 'contig', 'operon', 'Location'], inplace=True)
-    # # Split Location by '-' and extract min/max of first and second parts
-    # location_parts = operons['Location'].str.split('-', expand=True)
-    # print(location_parts, flush=True)
-    # operons['_location_start'] = location_parts[0].astype(int)
-    # operons['_location_end'] = location_parts[1].astype(int)
-    # operons['Location_start'] = operons.groupby(['GenomeID', 'contig', 'operon'])['_location_start'].transform('min')
-    # operons['Location_end'] = operons.groupby(['GenomeID', 'contig', 'operon'])['_location_end'].transform('max')
-    # operons = operons.drop(columns=['_location_start', '_location_end'])
+            # # export csv grouped by genome, contig, operon, and cluster
+            # operons = genomes_to_keep.copy().set_index(['contig'], append=True)
+            # operons.sort_values(by=['GenomeID', 'contig', 'operon', 'Location'], inplace=True)
+            # # Split Location by '-' and extract min/max of first and second parts
+            # location_parts = operons['Location'].str.split('-', expand=True)
+            # print(location_parts, flush=True)
+            # operons['_location_start'] = location_parts[0].astype(int)
+            # operons['_location_end'] = location_parts[1].astype(int)
+            # operons['Location_start'] = operons.groupby(['GenomeID', 'contig', 'operon'])['_location_start'].transform('min')
+            # operons['Location_end'] = operons.groupby(['GenomeID', 'contig', 'operon'])['_location_end'].transform('max')
+            # operons = operons.drop(columns=['_location_start', '_location_end'])
 
-    # operons = operons.groupby(['GenomeID', 'contig', 'operon']).agg(**{
-    #     'gene set': ('gene', lambda x: ', '.join(x.astype(str).str.replace(r'^(nif|anf|vnf)', '', regex=True))),
-    #     'Location_start': ('Location_start', 'first'),
-    #     'Location_end': ('Location_end', 'last'),
-    #     'GTDB': ('GTDB', 'first'),
-    #     'Orientation': ('Orientation', 'first'),
-    #     'pos_num': ('pos_num', lambda x: x.astype(int).tolist())
-    # }).reset_index()
+            # operons = operons.groupby(['GenomeID', 'contig', 'operon']).agg(**{
+            #     'gene set': ('gene', lambda x: ', '.join(x.astype(str).str.replace(r'^(nif|anf|vnf)', '', regex=True))),
+            #     'Location_start': ('Location_start', 'first'),
+            #     'Location_end': ('Location_end', 'last'),
+            #     'GTDB': ('GTDB', 'first'),
+            #     'Orientation': ('Orientation', 'first'),
+            #     'pos_num': ('pos_num', lambda x: x.astype(int).tolist())
+            # }).reset_index()
 
     operons = genomes_to_keep.copy()
 
@@ -457,7 +457,7 @@ def export_results(
             gtdb_metadata.set_index("accession"),
             on="GenomeID",
             how="left",
-        ).drop(columns=["GTDB"])
+        )
 
         operons["Organism"] = (
             operons["gtdb_taxonomy"].str.split(";").str[-1].str.split("__").str[-1]
@@ -529,7 +529,7 @@ def main() -> None:
 
     # check results against known nitrogenase
     if args.test:
-        test(checked=pd.read_csv(f'../results/final/{args.prefix}_final.csv'))
+        test(checked=pd.read_csv(f'../results/final/{args.out_prefix}_final.csv'))
 
 if __name__ == "__main__":
     main()

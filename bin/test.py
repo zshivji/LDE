@@ -16,13 +16,13 @@ def test(checked: pd.DataFrame) -> None:
     Compare the nif hits in the final nif file with the expected hits in the test file.
     """
     # read test file
-    test_file = pd.read_csv('diazoDB-checks.csv')
+    test_file = pd.read_csv('checks.csv')
     test_file.set_index(['genomeID', 'taxonomy'], inplace=True)
 
     checked.reset_index(inplace=True)
 
     # create log file
-    with open('diazoDB-check-log.txt', 'w') as log:
+    with open('check-log.txt', 'w') as log:
         # iterate through genomes in test file
         for genome in test_file.index.get_level_values(0).unique():
             taxonomy = test_file.loc[genome].index.get_level_values(0)[0]

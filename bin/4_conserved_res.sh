@@ -22,17 +22,16 @@ echo ""
 python conserved_res.py \
  --min_genes 1 \
  --proteins_dir /resnick/groups/enviromics/zahra/diazoDB-HPC/protein_faa_reps_232 \
- --test \
  --out_prefix GTDB
   # --reload_fasta \
   # --align_fasta \
+  # --test \
 
 python conserved_res.py \
   --hits_file /resnick/groups/enviromics/zahra/LDE/results/hmmsearch_results/AFDB_hits.csv \
   --reload_fasta \
   --min_genes 1 \
   --proteins_dir /resnick/groups/enviromics/zahra/LDE/AFDB_ungapped.fasta \
-  --test \
   --out_prefix AFDB
 
 echo ""
