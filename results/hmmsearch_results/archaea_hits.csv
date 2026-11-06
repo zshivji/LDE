@@ -1,4 +1,4 @@
-GenomeID,Gene,Hit,contig,pos_num,operon,E-value,Bit Score,Bias,Domain Start,Domain End,Location,Orientation,Flag_Bias
+GenomeID,gene,Hit,contig,pos_num,operon,E-value,Bit Score,Bias,Domain Start,Domain End,Location,Orientation,Flag_Bias
 GB_GCA_000270325.1,pqq,BA000048.1_243_A,BA000048.1,243,,1.1e-45,152.9,2.1,25,589,224355-226247,-1,0
 GB_GCA_000270325.1,pqq,BA000048.1_216_A,BA000048.1,216,,2.7e-26,88.9,0.3,29,337,198847-200670,1,0
 GB_GCA_000270325.1,pqq,BA000048.1_235_A,BA000048.1,235,,1.6e-07,26.9,0.0,12,127,215831-218047,-1,1

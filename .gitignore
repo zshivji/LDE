@@ -32,3 +32,5 @@ bin/__pycache__/cluster_pos.cpython-312.pyc
 # Untracked
 AFDB.fasta
 AFDB_ungapped.fasta
+
+results/tmp/fasta_splits

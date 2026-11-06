@@ -1,4 +1,4 @@
-GenomeID,Gene,Hit,contig,pos_num,operon,E-value,Bit Score,Bias,Domain Start,Domain End,Location,Orientation,Flag_Bias
+GenomeID,gene,Hit,contig,pos_num,operon,E-value,Bit Score,Bias,Domain Start,Domain End,Location,Orientation,Flag_Bias
 AFDB,pqq,AFDB:AF-A0A1S1P7W3-F1_A,,,,0.0,1293.5,16.4,0,601,,,0
 AFDB,pqq,AFDB:AF-B7KXB8-F1_A,,,,0.0,1293.5,16.4,0,601,,,0
 AFDB,pqq,AFDB:AF-C5B120-F1_A,,,,0.0,1293.5,16.4,0,601,,,0

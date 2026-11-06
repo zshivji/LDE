@@ -1,0 +1,5 @@
+outs:
+- md5: bed8ad904f46d2bef8c80b7046b41885
+  size: 73229363
+  hash: md5
+  path: fasta_splits.zip

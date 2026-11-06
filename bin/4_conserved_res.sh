@@ -1,37 +1,39 @@
 #!/bin/bash
 
-#SBATCH --time=2:04:00   # walltime #20hrs?
+#SBATCH --time=12:04:00   # walltime #8hrs?
 #SBATCH --ntasks=4   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 40GB   # memory per CPU core
-#SBATCH -J aln_hits   # job name
-##SBATCH --dependency=afterok:64053585
-
-# Notify at the beginning, end of job and on failure.
-#SBATCH --mail-user=zshivji@caltech.edu   # email address
-#SBATCH --mail-type=BEGIN
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-
-## /SBATCH -p general # partition (queue)
-## /SBATCH -o slurm.%N.%j.out # STDOUT
-## /SBATCH -e slurm.%N.%j.err # STDERR
+#SBATCH --job-name=conserved-res   # job name
+#SBATCH -o logs/%x-%j.out # STDOUT
+##SBATCH --dependency=afterok:65687517
 
 eval "$(conda shell.bash hook)"
 conda activate /resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm
 
-echo "======================================================"
+echo "====================================================="
 echo "Start Time  : $(date)"
 echo "Job ID/Name : $SLURM_JOBID / $SLURM_JOB_NAME"
 echo "======================================================"
 echo ""
 
-#python aln_nif_hits_599.py #--reload_fasta
+#python conserved_res.py --align_fasta --test
 
-python conserved-res.py
+python conserved_res.py \
+ --min_genes 1 \
+ --proteins_dir /resnick/groups/enviromics/zahra/diazoDB-HPC/protein_faa_reps_232 \
+ --test \
+ --out_prefix GTDB
+  # --reload_fasta \
+  # --align_fasta \
 
-#python final-fasta-export.py
-
+python conserved_res.py \
+  --hits_file /resnick/groups/enviromics/zahra/LDE/results/hmmsearch_results/AFDB_hits.csv \
+  --reload_fasta \
+  --min_genes 1 \
+  --proteins_dir /resnick/groups/enviromics/zahra/LDE/AFDB_ungapped.fasta \
+  --test \
+  --out_prefix AFDB
 
 echo ""
 echo "======================================================"
