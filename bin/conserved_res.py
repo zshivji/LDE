@@ -4,6 +4,7 @@ import glob
 import json
 import os
 import subprocess
+import sys
 from tqdm import tqdm
 import argparse
 
@@ -14,6 +15,8 @@ from Bio.SeqRecord import SeqRecord
 
 from helper import load_hits, filter_groups_by_unique_counts, get_seq
 from test import test
+
+NO_RESULTS_EXIT = 3
 
 # get args (reload_fasta)
 def parse_args() -> argparse.Namespace:
@@ -122,8 +125,8 @@ def write_fasta(
         for genome, hit in gene.iterrows():
             seq = get_seq(
                 genome,
-                hit.Hit[:-2],
-                description=hit.Hit,
+                hit.hit[:-2],
+                description=hit.hit,
                 start=hit['Domain Start'],
                 end=hit['Domain End'],
                 dir=proteins_dir,
@@ -143,9 +146,10 @@ def aln_fasta(
     genes: dict,
     config: dict,
     tmp_dir: str = "../results/tmp",
+    prefix: str = "hits"
 ):
     # align fasta files
-    splits_dir = os.path.join(tmp_dir, 'fasta_splits')
+    splits_dir = os.path.join(tmp_dir, f'{prefix}_fasta_splits')
     os.removedirs(splits_dir) if os.path.exists(splits_dir) else None
     os.makedirs(splits_dir, exist_ok=True)
     for name in genes['gene'].unique():
@@ -258,7 +262,7 @@ def check_gene(file, important_residues, residue_scores, passing_score, p=False)
 
     return pssm
 
-def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results/tmp") -> dict:
+def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results/tmp", prefix: str = "hits") -> dict:
     print("Checking for conserved residues...", flush=True)
 
     all_genes_checked = {}
@@ -276,7 +280,7 @@ def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results
         # loop through each split and check for conserved residues
             # store in list of dataframes
         checked = []
-        for i, file in enumerate(glob.glob(os.path.join(tmp_dir, 'fasta_splits', f"{gene}_split.*.aln"))):
+        for i, file in enumerate(glob.glob(os.path.join(tmp_dir, f'{prefix}_fasta_splits', f"{gene}_split.*.aln"))):
             checked.append(check_gene(file, important_residues, residue_scores, passing_score, p=(i==1)))
 
         # concat list of df into df
@@ -289,15 +293,15 @@ def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results
         checked_df['LDE'] = checked_df.apply(lambda row: 1 if row.get('D320') == 'D' else 0, axis=1)
 
         # only keep gene where residue matching passed
-        tmp = gene_list[(gene_list['gene'] == gene) & (gene_list['Hit'].isin(checked_df.index.get_level_values(1)))].copy()
+        tmp = gene_list[(gene_list['gene'] == gene) & (gene_list['hit'].isin(checked_df.index.get_level_values(1)))].copy()
         tmp['residue_match'] = gene
-        # checked_df has a MultiIndex (sequence id, hit), while Hit is a
+        # checked_df has a MultiIndex (sequence id, hit), while hit is a
         # column in tmp.  Reduce the residue results to a hit-indexed lookup
         # before assigning so values align on the matching hit.
         lde_by_hit = checked_df.reset_index().set_index('hit')['LDE']
-        tmp['LDE'] = tmp['Hit'].map(lde_by_hit) # apply metal dependence (Asp320, LDE only***)
+        tmp['LDE'] = tmp['hit'].map(lde_by_hit) # apply metal dependence (Asp320, LDE only***)
         # drop duplicates (keep lowest e-val)
-        tmp = tmp.loc[tmp.groupby('Hit')['E-value'].idxmin()]
+        tmp = tmp.sort_values('E-value').drop_duplicates('hit', keep='first')
         tmp.to_csv(os.path.join(tmp_dir, f'{gene}_rescheck_nofilt.csv'))
 
         all_genes_checked[gene] = tmp
@@ -307,7 +311,8 @@ def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results
     # export
     os.makedirs(tmp_dir, exist_ok=True)
     all_genes_checked = pd.concat(all_genes_checked.values())
-    all_genes_checked.set_index('GenomeID', inplace=True)
+    # print(all_genes_checked, flush=True)
+    # all_genes_checked.set_index('GenomeID', inplace=True)
     all_genes_checked.to_csv(os.path.join(tmp_dir, 'rescheck_nofilt.csv')) # index = GenomeID
 
     return all_genes_checked
@@ -326,19 +331,24 @@ def export_results(
     hits = all_genes_checked.copy()
 
     # assign final annotation + group domains into proteins
-    hits['protein'] = hits['Hit'].str.rsplit('_', n=1).str[0] # remove domain suffix to get protein name
+    hits['protein'] = hits['hit'].str.rsplit('_', n=1).str[0] # remove domain suffix to get protein name
     genomes_to_keep = hits.copy()#pd.DataFrame(columns=hits.columns).set_index('protein')
+
+    location_parts = genomes_to_keep['Location'].str.split('-', expand=True)
+    genomes_to_keep['Location_start'] = location_parts[0].astype(int)
+    genomes_to_keep['Location_end'] = location_parts[1].astype(int)
+    genomes_to_keep['pos_num'] = genomes_to_keep['protein'].str.rsplit('_').str[-1].astype(int)
     
     # # assign annotation from remaining filtered seqs (now apply best hits approach)
     # for idx, cluster in hits.groupby(['GenomeID', 'contig']):
     #     # keep best hit per domain (of filtered domains)
-    #     cluster = cluster.loc[cluster.groupby('Hit')['E-value'].idxmin()]
+    #     cluster = cluster.loc[cluster.groupby('hit')['E-value'].idxmin()]
     #     # merge domains into protein, aggegrate rows
     #         # expecting nifNB, nifEN, nifDG
     #     if cluster['Orientation'].sum() < 0: # if all genes on negative strand, reverse order of genes
-    #         cluster.sort_values(by=['Hit','Domain Start'], ascending=False, inplace=True)
+    #         cluster.sort_values(by=['hit','Domain Start'], ascending=False, inplace=True)
     #     else:
-    #         cluster.sort_values(by=['Hit', 'Domain Start'], ascending=True, inplace=True)
+    #         cluster.sort_values(by=['hit', 'Domain Start'], ascending=True, inplace=True)
     #     # if 'LKPX01000013.1_53' in cluster['protein'].to_list():
     #     #     print(cluster)
     #     cluster = cluster.groupby('protein', group_keys=False).agg({
@@ -346,7 +356,7 @@ def export_results(
     #         'contig': 'first',
     #         'operon': 'first',
     #         'gene': lambda x: '_'.join(sorted(x)),
-    #         'Hit': lambda x: ','.join(sorted(x)),
+    #         'hit': lambda x: ','.join(sorted(x)),
     #         'E-value': 'min',
     #         'Bit Score': 'sum',
     #         'Bias': 'sum',
@@ -371,124 +381,91 @@ def export_results(
     # genomes_to_keep.drop_duplicates(inplace = True)
     # genomes_to_keep = genomes_to_keep.reset_index()
 
-    # # remove operons with fewer than 3 unique nif genes (except for operons that contain nifB)
-    # genomes_to_keep = filter_groups_by_unique_counts(
-    # genomes_to_keep,
-    # group_cols=["GenomeID", "contig", "operon"],
-    # requirements={
-    # "gene": min_genes,
-    # "Hit": min_genes
-    # },
-    # exclude='nifB'
-    # )
-    # genomes_to_keep.set_index('GenomeID', inplace=True)
-
     # export csv with each gene as individual row
     if external: # clean up export for external DiazoDB users
         external_export = genomes_to_keep.copy()
         external_export['Sequence Length'] = external_export['Domain End'] - external_export['Domain Start']
-        external_export = external_export[['contig', 'protein', 'gene', 'Location', 'Sequence Length', 'Orientation', 'LDE']]
+        external_export = external_export[['contig', 'operon', 'protein', 'pos_num', 'gene', 'Location', 'Sequence Length', 'Orientation', 
+                                           'Location_start', 'Location_end', 'LDE']]
+        # external_export = external_export[['contig', 'operon', 'protein', 'gene', 'Sequence Length', 'Orientation', 
+        #                                    'Location_start', 'Location_end', 'LDE']]
         external_export.to_csv(os.path.join(results_dir, f'{prefix}_final.csv'))
+        operons = external_export.copy()
+        operons.to_csv(os.path.join(results_dir, f'{prefix}_operons.csv'))
+
 
     else:
         genomes_to_keep.to_csv(os.path.join(results_dir, f'{prefix}_final.csv'))
+        operons = genomes_to_keep.copy()
+        operons.to_csv(os.path.join(results_dir, f'{prefix}_operons.csv'))
 
 
-    # # get fasta sequences for each gene & export to fasta
-    # os.makedirs(os.path.join(results_dir, "fastas"), exist_ok=True)
-    # for gene in genomes_to_keep['gene'].unique().tolist():
-    #     records = []
+    # get fasta sequences for each gene & export to fasta
+    os.makedirs(os.path.join(results_dir, "fastas"), exist_ok=True)
+    for gene in genomes_to_keep['gene'].unique().tolist():
+        records = []
 
-    #     for genome, hit in genomes_to_keep[genomes_to_keep.gene == gene].iterrows():
-    #         record = get_seq(
-    #             genome,
-    #             hit.protein,
-    #             id=hit.protein,
-    #             description=f"{genome} {hit.gene}",
-    #             dir=proteins_dir,
-    #         )
-    #         records.append(record)
+        for genome, hit in genomes_to_keep[genomes_to_keep.gene == gene].iterrows():
+            record = get_seq(
+                genome,
+                hit.protein,
+                id=hit.protein,
+                description=f"{genome} {hit.gene}",
+                dir=proteins_dir,
+            )
+            records.append(record)
                     
-    #     # Write the records to a FASTA file
-    #     with open(os.path.join(results_dir, f"fastas/{prefix}_" + gene + ".fasta"), "w") as output_handle:
-    #         SeqIO.write(records, output_handle, "fasta")
+        # Write the records to a FASTA file
+        with open(os.path.join(results_dir, f"fastas/{prefix}_" + gene + ".fasta"), "w") as output_handle:
+            SeqIO.write(records, output_handle, "fasta")
 
-    #     print(f"{len(records)} final {gene} hits", flush=True)
+        print(f"{len(records)} final {gene} hits", flush=True)
 
-            # # export csv grouped by genome, contig, operon, and cluster
-            # operons = genomes_to_keep.copy().set_index(['contig'], append=True)
-            # operons.sort_values(by=['GenomeID', 'contig', 'operon', 'Location'], inplace=True)
-            # # Split Location by '-' and extract min/max of first and second parts
-            # location_parts = operons['Location'].str.split('-', expand=True)
-            # print(location_parts, flush=True)
-            # operons['_location_start'] = location_parts[0].astype(int)
-            # operons['_location_end'] = location_parts[1].astype(int)
-            # operons['Location_start'] = operons.groupby(['GenomeID', 'contig', 'operon'])['_location_start'].transform('min')
-            # operons['Location_end'] = operons.groupby(['GenomeID', 'contig', 'operon'])['_location_end'].transform('max')
-            # operons = operons.drop(columns=['_location_start', '_location_end'])
 
-            # operons = operons.groupby(['GenomeID', 'contig', 'operon']).agg(**{
-            #     'gene set': ('gene', lambda x: ', '.join(x.astype(str).str.replace(r'^(nif|anf|vnf)', '', regex=True))),
-            #     'Location_start': ('Location_start', 'first'),
-            #     'Location_end': ('Location_end', 'last'),
-            #     'GTDB': ('GTDB', 'first'),
-            #     'Orientation': ('Orientation', 'first'),
-            #     'pos_num': ('pos_num', lambda x: x.astype(int).tolist())
-            # }).reset_index()
+    # if include_metadata:
+    #     # Database-build mode enriches representative genomes with taxonomy.
+    #     gtdb_metadata = pd.read_csv(
+    #         "GTDB_metadata.gz",
+    #         sep="\t",
+    #         usecols=[
+    #             "accession",
+    #             "gtdb_taxonomy",
+    #             "ncbi_taxonomy",
+    #             "ncbi_taxonomy_unfiltered",
+    #             "ncbi_country",
+    #             "ncbi_isolation_source",
+    #         ],
+    #     )
 
-    operons = genomes_to_keep.copy()
+    #     operons = operons.join(
+    #         gtdb_metadata.set_index("accession"),
+    #         on="GenomeID",
+    #         how="left",
+    #     )
 
-    if include_metadata:
-        # Database-build mode enriches representative genomes with taxonomy.
-        gtdb_metadata = pd.read_csv(
-            "GTDB_metadata.gz",
-            sep="\t",
-            usecols=[
-                "accession",
-                "gtdb_taxonomy",
-                "ncbi_taxonomy",
-                "ncbi_taxonomy_unfiltered",
-                "ncbi_country",
-                "ncbi_isolation_source",
-            ],
-        )
-
-        operons = operons.join(
-            gtdb_metadata.set_index("accession"),
-            on="GenomeID",
-            how="left",
-        )
-
-        operons["Organism"] = (
-            operons["gtdb_taxonomy"].str.split(";").str[-1].str.split("__").str[-1]
-        )
-        operons["Regulon"] = ""
-        operons["Operon"] = ""
-        operons["Group"] = ""
-        operons.rename(
-            columns={
-                "gtdb_taxonomy": "GTDB Taxonomy",
-                "ncbi_taxonomy": "NCBI Taxonomy",
-                "ncbi_isolation_source": "Isolation Source",
-            },
-            inplace=True,
-        )
-    else:
-        # Uploaded genomes do not need database taxonomy enrichment.
-        operons.drop(columns=["GTDB"], errors="ignore", inplace=True)
-        # operons.rename(columns={"gene set": "Nitrogenase Set"}, inplace=True)
-
-    if external: # clean up export for external DiazoDB users
-        # append contig to the front of each value in pos_num 
-        operons['proteins'] = operons.apply(lambda row: [f"{row['contig']}_{pos}" for pos in row['pos_num']], axis=1)
-        operons = operons[['GenomeID', 'contig', 'proteins', 'Location_start', 'Location_end', 'Orientation','LDE', 'GTDB Taxonomy', 'NCBI Taxonomy', 'Isolation Source']]
-
-    operons.to_csv(os.path.join(results_dir, f'{prefix}_clusters.csv'), index=False)
+    #     operons["Organism"] = (
+    #         operons["gtdb_taxonomy"].str.split(";").str[-1].str.split("__").str[-1]
+    #     )
+    #     operons["Regulon"] = ""
+    #     operons["Operon"] = ""
+    #     operons["Group"] = ""
+    #     operons.rename(
+    #         columns={
+    #             "gtdb_taxonomy": "GTDB Taxonomy",
+    #             "ncbi_taxonomy": "NCBI Taxonomy",
+    #             "ncbi_isolation_source": "Isolation Source",
+    #         },
+    #         inplace=True,
+    #     )
+    # # else:
+    # #     # Uploaded genomes do not need database taxonomy enrichment.
+    # #     # operons.drop(columns=["GTDB"], errors="ignore", inplace=True)
+    # #     # operons.rename(columns={"gene set": "Nitrogenase Set"}, inplace=True)
 
     return genomes_to_keep
 
 
-def main() -> None:
+def main() -> int:
     args = parse_args()
 
     # load config and nif table at runtime
@@ -499,8 +476,8 @@ def main() -> None:
     hits = load_hits(update_index=['GenomeID'], hits_file=args.hits_file)
     
     if hits.empty:
-        print("No qualifying HMM hits; skipping conserved residue check.", flush=True)
-        return
+        print("No qualifying HMM hits; stopping pipeline.", file=sys.stderr, flush=True)
+        return NO_RESULTS_EXIT
 
     # store per-gene df in a dict
     gene_list = {gene: hits[hits.gene == gene].copy() for gene in config.keys()}
@@ -513,10 +490,14 @@ def main() -> None:
     else: 
         gene_list = pd.read_csv(os.path.join(args.tmp, 'hits_seq.csv'))
     if args.align_fasta:
-        aln_fasta(gene_list, config, tmp_dir=args.tmp)
+        aln_fasta(gene_list, config, tmp_dir=args.tmp, prefix=args.out_prefix)
 
     # check for conserved residues and save results
-    checked = check_gene_wrapper(gene_list, config, tmp_dir=args.tmp)
+    checked = check_gene_wrapper(gene_list, config, tmp_dir=args.tmp, prefix=args.out_prefix)
+    if checked.empty:
+        print("No hits passed the conserved-residue check; stopping pipeline.", file=sys.stderr, flush=True)
+        return NO_RESULTS_EXIT
+
     export_results(
         checked,
         args.min_genes,
@@ -531,5 +512,7 @@ def main() -> None:
     if args.test:
         test(checked=pd.read_csv(f'../results/final/{args.out_prefix}_final.csv'))
 
+    return 0
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

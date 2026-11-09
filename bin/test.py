@@ -5,6 +5,7 @@ import json
 import os
 from tqdm import tqdm
 import argparse
+import sys
 
 from Bio import AlignIO
 from Bio import SeqIO
@@ -13,7 +14,7 @@ from Bio.SeqRecord import SeqRecord
 
 def test(checked: pd.DataFrame) -> None:
     """
-    Compare the nif hits in the final nif file with the expected hits in the test file.
+    Compare the final hits in "checked" to the expected hits in the test file.
     """
     # read test file
     test_file = pd.read_csv('checks.csv')
@@ -51,18 +52,18 @@ def test(checked: pd.DataFrame) -> None:
                 
                 # get actual hit from checked
                 try:
-                    gene = checked[(checked['GenomeID'] == genome) & (checked['protein'] == hit)].Gene.values[0]
+                    gene = checked[(checked['GenomeID'] == genome) & (checked['protein'] == hit)].gene.values[0]
                     if gene == actual_hit:
                         log.write(f'PASS: {hit} is {actual_hit} \n')
                     else:
                         log.write(f'FAIL: expecting {actual_hit} but got {gene} for {hit} \n')
                 except:
-                    log.write(f'need to update: {hit}, expecting {actual_hit} but got {checked[checked['protein'] == hit].Gene} \n')
+                    log.write(f'need to update: {hit}, expecting {actual_hit} but got {checked[checked['protein'] == hit].gene} \n')
 
             log.write('\n')
 
 def main() -> None:
-    test(checked=pd.read_csv('../results/final/nif_final.csv'))
+    test(checked=pd.read_csv(sys.argv[1]))
 
 if __name__ == "__main__":
     main()

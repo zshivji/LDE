@@ -102,6 +102,10 @@ def filter_groups_by_unique_counts(df, group_cols, requirements, exclude='nifB')
             for col, threshold in requirements.items()
         )
 
+    # Step 0: exit function if min_genes==1
+    if requirements.get('gene', 0) <= 1 and requirements.get('hit', 0) <= 1:
+        return df
+    
     # Step 1: remove genomes that fewer than 3 unique nif genes.
     df = df.copy()
     df = df.groupby('GenomeID').filter(

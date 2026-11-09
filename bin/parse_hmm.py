@@ -180,7 +180,7 @@ def parse_hits(hits_path: Path) -> pd.DataFrame:
         {
             "GenomeID": result_target,
             "gene": query_id,
-            "Hit": hit_id,
+            "hit": hit_id,
             "contig": contig,
             "pos_num": pos_num,
             "operon": operon,
@@ -211,7 +211,7 @@ def parse_tophits(
         group_cols=["GenomeID", "contig", "Orientation"],
         requirements={
         "gene": min_genes,
-        "Hit": min_genes
+        "hit": min_genes
         },
         exclude='nifB'
     )
@@ -253,13 +253,13 @@ def parse_tophits(
         group_cols=["GenomeID", "contig", "operon"],
         requirements={
         "gene": min_genes,
-        "Hit": min_genes
+        "hit": min_genes
         },
         exclude='nifB'
     )
 
     # record which gene has the highest bitscore for each protein
-    genomes_to_keep["top_hit"] = (genomes_to_keep.sort_values("Bit Score", ascending=False).groupby(["GenomeID", "contig", "Hit"])["gene"].transform("first"))
+    genomes_to_keep["top_hit"] = (genomes_to_keep.sort_values("Bit Score", ascending=False).groupby(["GenomeID", "contig", "hit"])["gene"].transform("first"))
 
     if include_taxonomy:
         # Database-build mode enriches representative genomes with taxonomy.

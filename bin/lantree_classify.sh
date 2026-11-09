@@ -17,8 +17,12 @@
 
 set -euo pipefail
 
-REPO_ROOT="/resnick/groups/enviromics/zahra/LanTree"
-SCRIPT_DIR="/resnick/groups/enviromics/zahra/LanTree/bin"
+REPO_ROOT="/resnick/groups/enviromics/zahra/LDE"
+SCRIPT_DIR="$REPO_ROOT/bin"
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >&2
+}
 
 # Prefer env vars injected by runner; fall back to positional args if provided.
 LANTREE_JOB_ID="${LANTREE_JOB_ID:-${1:-}}"
@@ -36,36 +40,44 @@ mkdir -p "$INTERMEDIATE" "$FINAL_DIR"
 HMMSEARCH_BIN="${LANTREE_HMMSEARCH_BIN:-hmmsearch}"
 PRODIGAL_BIN="${LANTREE_PRODIGAL_BIN:-prodigal}"
 USE_PRODIGAL="${LANTREE_USE_PRODIGAL:-false}"
+LANTREE_CONDA_ENV="${LANTREE_CONDA_ENV:-/resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm}"
+LANTREE_PRODIGAL_ENV="${LANTREE_PRODIGAL_ENV:-/resnick/groups/enviromics/zahra/miniconda3/envs/prodigal}"
+CONDA_BIN="${LANTREE_CONDA_BIN:-/resnick/groups/enviromics/zahra/miniconda3/bin/conda}"
+MICROBE_ENV="${LANTREE_MICROBE_ENV:-/resnick/groups/enviromics/zahra/miniconda3/envs/microbeannotator}"
+MICROBE_DB="${LANTREE_MICROBE_DB:-/resnick/groups/enviromics/databases/microbeannotator-db}"
+MICROBE_THREADS="${LANTREE_MICROBE_THREADS:-1}"
 
 QUERY_FASTA="$INPUT_FASTA"
-HMM_DB="$REPO_ROOT/analysis/HMMs/PQQ_ADH.hmm"
+HMM_DB="$REPO_ROOT/HMMs/PQQ_ADH.hmm"
 JOB_HMM_DIR="$INTERMEDIATE/hmmsearch_results"
 JOB_PARSED_HITS="$JOB_HMM_DIR/hits.csv"
 TMP="$INTERMEDIATE/tmp"
+
+mkdir -p "$JOB_HMM_DIR" "$TMP"
 
 echo "====================================================="
 echo "Start Time  : $(date)"
 echo "Job ID      : $LANTREE_JOB_ID"
 echo "Input       : $INPUT_FASTA"
-echo "Output      : $FINAL_OUTPUT"
+echo "Output      : $FINAL_DIR"
 echo "Slurm ID    : ${SLURM_JOBID:-local}"
 echo "====================================================="
 
-if [[ -n "${LANTREE_CONDA_ENV:-}" ]]; then
-  eval "$(conda shell.bash hook)"
-  conda activate "$LANTREE_CONDA_ENV"
+if [[ ! -x "$CONDA_BIN" ]]; then
+  echo "Conda executable not found or not executable: $CONDA_BIN" >&2
+  exit 127
 fi
+eval "$("$CONDA_BIN" shell.bash hook)"
+  conda activate "$LANTREE_CONDA_ENV"
 
-module load mafft/7.505-gcc-13.2.0-nklkvtc
-
-# if [[ "$USE_PRODIGAL" == "true" ]]; then
-#   QUERY_FASTA="$OUTDIR/predicted_proteins.faa"
-#   "$PRODIGAL_BIN" \
-#     -i "$INPUT_FASTA" \
-#     -a "$QUERY_FASTA" \
-#     -p meta \
-#     -q
-# fi
+if [[ "$USE_PRODIGAL" == "true" ]]; then
+  QUERY_FASTA="$OUTDIR/predicted_proteins.faa"
+  "$PRODIGAL_BIN" \
+    -i "$INPUT_FASTA" \
+    -a "$QUERY_FASTA" \
+    -p meta \
+    -q
+fi
 
 INPUT_STEM="$(basename "$INPUT_FASTA")"
 INPUT_STEM="${INPUT_STEM%.*}"
@@ -90,10 +102,12 @@ cd "$SCRIPT_DIR"
 python parse_hmm.py \
   --hits "$JOB_HMM_DIR" \
   --outdir "$JOB_HMM_DIR" \
-  --output_file "$JOB_PARSED_HITS"
+  --output_file "$JOB_PARSED_HITS" \
+  --refine \
+  --min_genes 1
 
 # Run conserved-residue classification entirely within this job's directories.
-python conserved_res.py \
+if python conserved_res.py \
   --hits_file "$JOB_PARSED_HITS" \
   --reload_fasta \
   --min_genes 1 \
@@ -103,6 +117,15 @@ python conserved_res.py \
   --skip_metadata \
   --out_prefix pqq \
   --external
+then
+  :
+else
+  CLASSIFIER_STATUS=$?
+  if [[ "$CLASSIFIER_STATUS" -eq 3 ]]; then
+    log "Job completed, no results found"
+  fi
+  exit "$CLASSIFIER_STATUS"
+fi
 
 # Create operon organization diagrams in this job's isolated workspace.
 # The classifier has already produced pqq_clusters.csv and pqq_final.csv in
@@ -112,15 +135,15 @@ OPERON_DIR="$INTERMEDIATE/operon-org"
 OPERON_INPUT_DIR="$OPERON_DIR/input-fastas"
 OPERON_ANNOT_DIR="$OPERON_DIR/microbeannotator"
 OPERON_METADATA="$FINAL_DIR/operon_metadata.json"
-OPERON_CLUSTERS="$FINAL_DIR/pqq_clusters.csv"
-OPERON_NIF_FINAL="$FINAL_DIR/pqq_final.csv"
+OPERON_CLUSTERS="$FINAL_DIR/pqq_operons.csv"
+FINAL_CSV="$FINAL_DIR/pqq_final.csv"
 
 log "Preparing operon FASTA inputs in $OPERON_INPUT_DIR"
 mkdir -p "$OPERON_INPUT_DIR" "$OPERON_ANNOT_DIR"
-if [[ -s "$OPERON_CLUSTERS" && -s "$OPERON_NIF_FINAL" ]]; then
+if [[ -s "$OPERON_CLUSTERS" && -s "$FINAL_CSV" ]]; then
   (
     cd "$SCRIPT_DIR"
-    conda run -p "$DIAZODB_CONDA_ENV" python diazoDB-metadata.py \
+    "$CONDA_BIN" run -p "$LANTREE_CONDA_ENV" python metadata.py \
       --prepare \
       --proteins_dir "$(dirname "$QUERY_FASTA")" \
       --clusters_file "$OPERON_CLUSTERS" \
@@ -151,10 +174,10 @@ if [[ -s "$OPERON_CLUSTERS" && -s "$OPERON_NIF_FINAL" ]]; then
 
     (
       cd "$SCRIPT_DIR"
-      conda run -p "$DIAZODB_CONDA_ENV" python diazoDB-metadata.py \
+      "$CONDA_BIN" run -p "$LANTREE_CONDA_ENV" python metadata.py \
         --data \
         --clusters_file "$OPERON_CLUSTERS" \
-        --nif_final_file "$OPERON_NIF_FINAL" \
+        --final_file "$FINAL_CSV" \
         --operon_dir "$OPERON_DIR" \
         --metadata_file "$OPERON_METADATA"
     )
@@ -171,14 +194,8 @@ fi
 #blastp
 
 # Emit final result for the runner
-FINAL_CSV="$FINAL_DIR/nif_clusters.csv"
-FINAL_DETAIL_CSV="$FINAL_DIR/nif_final.csv"
 if [[ ! -s "$FINAL_CSV" ]]; then
   echo "Expected result was not created: $FINAL_CSV" >&2
-  exit 1
-fi
-if [[ ! -s "$FINAL_DETAIL_CSV" ]]; then
-  echo "Expected result was not created: $FINAL_DETAIL_CSV" >&2
   exit 1
 fi
 
