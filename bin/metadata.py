@@ -209,54 +209,54 @@ def get_plot_data(final_file, clusters_file, operon_dir):
     gene_data.to_csv(Path(operon_dir) / 'operon-org-plot-data.csv', index=False)
     return gene_data
 
-# need tree built with final data to get group info
-    # appends Grou info onto exisiting nif_final.csv and nif_clusters.csv
-# def get_group():
-#     nif = pd.read_csv('../results/final/nif_final.csv')
+# need tree built with final data to get group/substrate info
+#     appends Group info onto exisiting pqq_final.csv and pqq_clusters.csv
+def get_group(final_file, clusters_file):
+    pqq = pd.read_csv(final_file)
 
-#     # start with assigning nifH clusters
-#     gene = 'H'
+    # # start with assigning nifH clusters
+    # gene = 'H'
 
-#     # get clustered datapoints
-#     tree_clusters = pd.read_csv(f'../trees/nif{gene}/nif{gene}_anf{gene}_vnf{gene}_clustered.fasta.tsv', 
-#                                 sep = '\t', 
-#                                 header = None,
-#                                 names = ['rep', 'acc']) 
+    # get clustered datapoints
+    tree_clusters = pd.read_csv(f'../trees/GTDB_AFDB_pqq_clustered_cluster.tsv', 
+                                sep = '\t', 
+                                header = None,
+                                names = ['rep', 'acc']) 
 
-#     # assign group 
-#     for group in ['1', '2', '3', '4a', '4c', '3anfvnf']:
-#         lines = []
-#         hits = []
-#         # for each group, find all matching hits in nif_final.csv
-#         with open(f'nif_groups/nif{gene}_group{group}.txt','r') as f:
-#             lines = f.read().splitlines()
-#             for line in lines:
-#                 hit = '_'.join(line.split('|')[-1].strip().replace("'", "").split(' '))
-#                 hits.append(hit) # reformat "hits" to match nif index
-#                 hits.extend(tree_clusters.loc[tree_clusters['rep'] == hit, 'acc'].to_list()) # add clustered hits to list of hits to update
-#                 if group == '3anfvnf':
-#                     hits.extend(nif.loc[nif['Gene'].isin(['anfH', 'vnfH']), 'protein'].to_list()) # add anfH/vnfH to group 3anfvnf
+    # assign group 
+    for group in ['XoxF', 'MxaF', 'ExaF', 'GDH']:
+        lines = []
+        hits = []
+        # for each group, find all matching hits in nif_final.csv
+        with open(f'substrate/{group}.txt','r') as f:
+            lines = f.read().splitlines()
+            for line in lines:
+                hit = '_'.join(line.split('|')[-1].strip().replace("'", "").split(' '))
+                hits.append(hit) # reformat "hits" to match nif index
+                hits.extend(tree_clusters.loc[tree_clusters['rep'] == hit, 'acc'].to_list()) # add clustered hits to list of hits to update
+                if group == '3anfvnf':
+                    hits.extend(pqq.loc[pqq['Gene'].isin(['anfH', 'vnfH']), 'protein'].to_list()) # add anfH/vnfH to group 3anfvnf
         
-#         # Apply the nifH/anfH/vnfH group to every gene in each matched cluster
-#         cluster_cols = ['GenomeID', 'contig', 'cluster', 'operon']
+        # Apply the nifH/anfH/vnfH group to every gene in each matched cluster
+        cluster_cols = ['GenomeID', 'contig', 'cluster', 'operon']
 
-#         grouped_clusters = nif.loc[nif['protein'].isin(hits), cluster_cols].drop_duplicates()
-#         cluster_index = pd.MultiIndex.from_frame(grouped_clusters)
-#         nif_index = pd.MultiIndex.from_frame(nif[cluster_cols])
-#         nif.loc[nif_index.isin(cluster_index), 'Group'] = f'Group {group}'
+        grouped_clusters = pqq.loc[pqq['protein'].isin(hits), cluster_cols].drop_duplicates()
+        cluster_index = pd.MultiIndex.from_frame(grouped_clusters)
+        pqq_index = pd.MultiIndex.from_frame(pqq[cluster_cols])
+        pqq.loc[pqq_index.isin(cluster_index), 'Group'] = f'Group {group}'
     
-#     # export updated nif_final.csv with group info
-#     nif.to_csv('../results/final/nif_final.csv', index=False)
+    # export updated nif_final.csv with group info
+    pqq.to_csv(final_file, index=False)
 
-#     # export updated nif_clusters.csv with group info
-#     clusters = pd.read_csv('../results/final/nif_clusters.csv')
-#     clusters = clusters.drop(columns=['Group', 'Group No', 'Group_x', 'Group_y'], errors='ignore') # make sure no duplicate Group columns exist before merging
-#     # add Group col to nif_clusters.csv by matching rows GenomID, contig, cluster, and operon to nif_final.csv
-#         # how='left' --> keep all rows in nif_clusters.csv, even if no match in nif_final.csv
-#         # validate='many_to_one' --> each row in nif_clusters.csv should match at most one row in nif_final.csv
-#     clusters = clusters.merge(nif[['GenomeID', 'contig', 'cluster', 'operon', 'Group']].drop_duplicates(), 
-#                               on=['GenomeID', 'contig', 'cluster', 'operon'], how='left', validate='many_to_one')
-#     clusters.to_csv('../results/final/nif_clusters.csv', index=False)
+    # export updated nif_clusters.csv with group info
+    clusters = pd.read_csv(clusters_file)
+    clusters = clusters.drop(columns=['Group', 'Group No', 'Group_x', 'Group_y'], errors='ignore') # make sure no duplicate Group columns exist before merging
+    # add Group col to nif_clusters.csv by matching rows GenomID, contig, cluster, and operon to nif_final.csv
+        # how='left' --> keep all rows in nif_clusters.csv, even if no match in nif_final.csv
+        # validate='many_to_one' --> each row in nif_clusters.csv should match at most one row in nif_final.csv
+    clusters = clusters.merge(pqq[['GenomeID', 'contig', 'operon', 'Group']].drop_duplicates(), 
+                              on=['GenomeID', 'contig', 'operon'], how='left', validate='many_to_one')
+    clusters.to_csv(clusters_file, index=False)
 
 # export metadata.json for displaying hover info on diazoDB phylo tree
 def export_metadata(gene_data, operons, metadata_file):
@@ -373,7 +373,8 @@ def main() -> None:
             operon_dir=args.operon_dir,
         )
 
-        # get_group() # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
+        get_group(final_file=args.final_file,
+            clusters_file=args.clusters_file) # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
         results = pd.read_csv(args.clusters_file)
 
         print("Exporting operon organization to operon-org-plot-data.csv", flush=True)
@@ -383,7 +384,8 @@ def main() -> None:
             plot(gene_data, plot_file=args.plot_file)
 
     elif args.export or args.plot:
-        # get_group() # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
+        get_group(final_file=args.final_file,
+                    clusters_file=args.clusters_file) # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
         results = pd.read_csv(args.clusters_file)
         gene_data = pd.read_csv(args.operon_dir / 'operon-org-plot-data.csv')
 

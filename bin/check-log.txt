@@ -1,0 +1,21 @@
+Checking RS_GCF_024169925.1 Methylobacterium extorquens_A
+PASS: correct number of genes found
+PASS: NZ_JALJXF010000001.1_1674 is pqq 
+PASS: NZ_JALJXF010000001.1_3876 is pqq 
+PASS: NZ_JALJXF010000001.1_1353 is pqq 
+
+Checking RS_GCF_000011365.1 Bradyrhizobium diazoefficiens
+PASS: correct number of genes found
+PASS: NC_004463.1_331 is pqq 
+PASS: NC_004463.1_6347 is pqq 
+PASS: NC_004463.1_6354 is pqq 
+
+Checking RS_GCF_949774925.1 Methylacidiphilum fumariolicum
+FAIL: missing 1 hits 
+need to update: NZ_OX458932.1_1076, expecting pqq but got Series([], Name: gene, dtype: object) 
+
+Checking RS_GCF_021283545.2 Pseudomonas_E alloputida
+PASS: correct number of genes found
+FAIL: expecting pedH but got pqq for NZ_CP128540.1_3381 
+FAIL: expecting exaA but got pqq for NZ_CP128540.1_3386 
+
