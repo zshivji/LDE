@@ -11,6 +11,12 @@ from Bio.SeqRecord import SeqRecord
 from Bio import Phylo
 import Bio.Phylo.NewickIO
 
+import gzip
+import re
+from functools import lru_cache
+
+from ete3 import NCBITaxa
+
 def load_hits(update_index, hits_file=None, archaea_only=False):
     if hits_file:
         nif = pd.read_csv(hits_file)
@@ -186,6 +192,76 @@ def tree_comparison(cutoff=90):
 #     plt.title('Venn Diagram of Comparison DBs')
 #     plt.savefig('../diazoDB-comparison/tree-comparison/nifD-tree-comparison-venn.png')
 #     plt.close()
+
+def get_AFDB_domain(record, fasta_path = "../AFDB.fasta"):
+    """Yield one dictionary per FASTA record.
+
+    domain is Bacteria, Archaea, Eukaryota, or None.
+    Metagenome/environmental/unspecified sources return None,
+    even if their lineage includes a domain.
+    """
+    ncbi = NCBITaxa()
+
+    # Match stable lineage IDs rather than depending on rank names.
+    domain_ids = {
+        2: "Bacteria",
+        2157: "Archaea",
+        2759: "Eukaryota",
+    }
+
+    nonspecific = re.compile(
+        r"\b(metagenom\w*|environmental|uncultured|unclassified|"
+        r"unidentified|unspecified|synthetic|mixed)\b",
+        re.IGNORECASE,
+    )
+
+    @lru_cache(maxsize=100_000)
+    def lookup_domain(taxid):
+        if taxid is None:
+            return None
+
+        try:
+            lineage = ncbi.get_lineage(taxid)
+        except ValueError:  # Unknown or deleted taxonomy ID
+            return None
+
+        names = ncbi.get_taxid_translator(lineage)
+
+        # Also inspect the taxonomy itself, not just the FASTA OS field.
+        if any(nonspecific.search(name) for name in names.values()):
+            return None
+
+        return next(
+            (domain_ids[node] for node in lineage if node in domain_ids),
+            None,
+        )
+
+    opener = gzip.open if str(fasta_path).endswith(".gz") else open
+
+    with opener(fasta_path, "rt") as fasta:
+        for line in fasta:
+            if not line.startswith(">"):
+                continue
+
+            header = line[1:].strip()
+            if header.split()[0] == record:
+                
+                ox = re.search(r"\bOX=(\d+)\b", header)
+                os = re.search(
+                    r"\bOS=(.*?)(?=\s+[A-Z][A-Z0-9]*=|$)", header
+                )
+                ua = re.search(r"\bUA=(\S+)", header)
+
+                taxid = int(ox.group(1)) if ox else None
+                organism = os.group(1).strip() if os else None
+
+                domain = (
+                    None
+                    if organism and nonspecific.search(organism)
+                    else lookup_domain(taxid)
+                )
+
+                return domain
 
 
 def main():

@@ -12,6 +12,8 @@ import argparse
 import warnings
 import math
 import numbers
+import shutil
+import subprocess
 from pathlib import Path
 
 from Bio import SeqIO
@@ -62,6 +64,43 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--blast",
+        action='store_true',
+        help="Find the best BLASTP match for every sequence in --query_fasta.",
+    )
+    parser.add_argument(
+        "--query_fasta",
+        type=Path,
+        help="FASTA file containing uploaded PQQ hits for --blast.",
+    )
+    parser.add_argument(
+        "--blast_db",
+        type=Path,
+        help="Existing BLAST protein database basename for --blast.",
+    )
+    parser.add_argument(
+        "--blast_output",
+        type=Path,
+        help="TSV destination for best BLAST matches (default: <query>.best.tsv).",
+    )
+    parser.add_argument(
+        "--blastp_bin",
+        default="blastp",
+        help="blastp executable (default: blastp).",
+    )
+    parser.add_argument(
+        "--blast_evalue",
+        type=float,
+        default=10.0,
+        help="Maximum BLASTP e-value (default: 10).",
+    )
+    parser.add_argument(
+        "--external",
+        action="store_true",
+        help="Export a cleaned-up nif_final.csv and nif_clusters.csv for external DiazoDB users.",
+    )
+
+    parser.add_argument(
         "--proteins_dir",
         help=(
             "Path to input protein directories (GTDB or DiazoDB user input). "
@@ -101,6 +140,43 @@ def parse_args() -> argparse.Namespace:
     )
        
     return parser.parse_args()
+
+
+BLAST_FIELDS = [
+    "qseqid", "sseqid", "pident", "length", "mismatch", "gapopen",
+    "qstart", "qend", "sstart", "send", "evalue", "bitscore",
+]
+
+
+def find_best_blast_matches(
+    output_file: Path,
+) -> pd.DataFrame:
+    """Run BLASTP and write one deterministic best hit for every query.
+
+    BLAST is allowed to return multiple alignments per query.  Selecting after
+    parsing avoids relying on ``-max_target_seqs 1``'s ranking behavior and
+    makes the result reproducible: lowest e-value, then highest bit score,
+    identity, and alignment length.
+    """
+    output_file = Path(output_file)
+
+    # if not query_fasta.is_file():
+    #     raise FileNotFoundError(f"Query FASTA does not exist: {query_fasta}")
+    # if not shutil.which(blastp_bin) and not Path(blastp_bin).is_file():
+    #     raise FileNotFoundError(f"blastp executable not found: {blastp_bin}")
+    # if not any(Path(f"{blast_db}{suffix}").is_file() for suffix in (".pin", ".phr", ".psq")):
+    #     raise FileNotFoundError(
+    #         f"BLAST protein database not found for basename: {blast_db} "
+    #         "(expected .pin/.phr/.psq files)"
+    #     )
+
+    blast = pd.read_csv(output_file, sep="\t", names=BLAST_FIELDS)
+    blast = blast.sort_values(
+                    ["qseqid", "evalue", "bitscore", "pident", "length"],
+                    ascending=[True, True, False, False, False],
+                    kind="mergesort",
+                ).drop_duplicates("qseqid", keep="first")
+    return blast
 
 KO_OVERRIDES = {'K00532': 'hydA'} # store ko2gene
 
@@ -211,20 +287,26 @@ def get_plot_data(final_file, clusters_file, operon_dir):
 
 # need tree built with final data to get group/substrate info
 #     appends Group info onto exisiting pqq_final.csv and pqq_clusters.csv
-def get_group(final_file, clusters_file):
+def get_group(final_file, clusters_file, external=False):
     pqq = pd.read_csv(final_file)
 
     # # start with assigning nifH clusters
     # gene = 'H'
 
     # get clustered datapoints
-    tree_clusters = pd.read_csv(f'../trees/GTDB_AFDB_pqq_clustered_cluster.tsv', 
+    tree_clusters = pd.read_csv(f'../trees/config0/GTDB_AFDB_pqq_clustered_cluster.tsv', 
                                 sep = '\t', 
                                 header = None,
                                 names = ['rep', 'acc']) 
 
+    # for external data, first find BLAST best match, then find get group of that hit
+    if external:
+        output_file = f"{final_file.parent}/pqq_best_blast.tsv"
+        blast = find_best_blast_matches(output_file=Path(output_file))
+        pqq = pqq.merge(blast[['qseqid', 'sseqid']], left_on='protein', right_on='qseqid', how='left')
+
     # assign group 
-    for group in ['XoxF', 'MxaF', 'ExaF', 'GDH']:
+    for group in ['XoxF', 'MxaF', 'ExaF']:#, 'GDH']:
         lines = []
         hits = []
         # for each group, find all matching hits in nif_final.csv
@@ -234,16 +316,19 @@ def get_group(final_file, clusters_file):
                 hit = '_'.join(line.split('|')[-1].strip().replace("'", "").split(' '))
                 hits.append(hit) # reformat "hits" to match nif index
                 hits.extend(tree_clusters.loc[tree_clusters['rep'] == hit, 'acc'].to_list()) # add clustered hits to list of hits to update
-                if group == '3anfvnf':
-                    hits.extend(pqq.loc[pqq['Gene'].isin(['anfH', 'vnfH']), 'protein'].to_list()) # add anfH/vnfH to group 3anfvnf
+                # if group == '3anfvnf':
+                #     hits.extend(pqq.loc[pqq['Gene'].isin(['anfH', 'vnfH']), 'protein'].to_list()) # add anfH/vnfH to group 3anfvnf
         
         # Apply the nifH/anfH/vnfH group to every gene in each matched cluster
         cluster_cols = ['GenomeID', 'contig', 'cluster', 'operon']
 
-        grouped_clusters = pqq.loc[pqq['protein'].isin(hits), cluster_cols].drop_duplicates()
-        cluster_index = pd.MultiIndex.from_frame(grouped_clusters)
-        pqq_index = pd.MultiIndex.from_frame(pqq[cluster_cols])
-        pqq.loc[pqq_index.isin(cluster_index), 'Group'] = f'Group {group}'
+        if external:
+            pqq.loc[pqq['sseqid'].isin(hits), 'Group'] = f'{group}'
+        else:
+            grouped_clusters = pqq.loc[pqq['protein'].isin(hits), cluster_cols].drop_duplicates()
+            cluster_index = pd.MultiIndex.from_frame(grouped_clusters)
+            pqq_index = pd.MultiIndex.from_frame(pqq[cluster_cols])
+            pqq.loc[pqq_index.isin(cluster_index), 'Group'] = f'{group}'
     
     # export updated nif_final.csv with group info
     pqq.to_csv(final_file, index=False)
@@ -276,6 +361,7 @@ def export_metadata(gene_data, operons, metadata_file):
         taxonomy = cluster.get('GTDB Taxonomy', cluster.get('GTDB', ''))
         environments = cluster.get('Isolation Source', '')
         organism = cluster.get('Organism', genome)
+        domain = taxonomy.split(';')[0][2:] if taxonomy else ''
         group = cluster.get('Group No', cluster.get('Group', ''))
 
         # get operon data for plotting on interactive tree
@@ -356,6 +442,20 @@ def plot(gene_data, plot_file): # plot operon organization
 def main() -> None:
     args = parse_args()
 
+    # if args.blast:
+    #     if args.query_fasta is None or args.blast_db is None:
+    #         raise SystemExit("--blast requires both --query_fasta and --blast_db")
+    #     output_file = args.blast_output or args.query_fasta.with_suffix(".best.tsv")
+    #     matches = find_best_blast_matches(
+    #         query_fasta=args.query_fasta,
+    #         blast_db=args.blast_db,
+    #         output_file=output_file,
+    #         blastp_bin=args.blastp_bin,
+    #         evalue=args.blast_evalue,
+    #     )
+    #     print(f"Wrote {len(matches)} best BLAST matches to {output_file}", flush=True)
+    #     return
+
     if args.prepare:
         results = pd.read_csv(args.clusters_file)
         print("Preparing operon FASTA inputs for MicrobeAnnotator", flush=True)
@@ -374,7 +474,8 @@ def main() -> None:
         )
 
         get_group(final_file=args.final_file,
-            clusters_file=args.clusters_file) # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
+            clusters_file=args.clusters_file,
+            external=args.external) # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
         results = pd.read_csv(args.clusters_file)
 
         print("Exporting operon organization to operon-org-plot-data.csv", flush=True)
@@ -385,7 +486,8 @@ def main() -> None:
 
     elif args.export or args.plot:
         get_group(final_file=args.final_file,
-                    clusters_file=args.clusters_file) # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
+                    clusters_file=args.clusters_file,
+                    external=args.external) # make sure nif group info is appended to nif_final.csv and nif_clusters.csv
         results = pd.read_csv(args.clusters_file)
         gene_data = pd.read_csv(args.operon_dir / 'operon-org-plot-data.csv')
 

@@ -84,7 +84,7 @@ INPUT_STEM="${INPUT_STEM%.*}"
 SAFE_INPUT_STEM="$(printf '%s' "$INPUT_STEM" | tr -c 'A-Za-z0-9._-' '_')"
 SAFE_JOB_ID="$(printf '%s' "$LANTREE_JOB_ID" | tr -c 'A-Za-z0-9._-' '_')"
 SAFE_INPUT_STEM="${SAFE_INPUT_STEM:-input}"
-HMM_PREFIX="${SAFE_INPUT_STEM}__job_${SAFE_JOB_ID}_nif"
+HMM_PREFIX="${SAFE_INPUT_STEM}__job_${SAFE_JOB_ID}_pqq"
 JOB_DOMTBLOUT="$JOB_HMM_DIR/${HMM_PREFIX}.domtblout"
 JOB_HMM_OUT="$JOB_HMM_DIR/${HMM_PREFIX}.out"
 
@@ -115,7 +115,6 @@ if python conserved_res.py \
   --tmp "$TMP" \
   --final_dir "$FINAL_DIR" \
   --skip_metadata \
-  --out_prefix pqq \
   --external
 then
   :
@@ -135,8 +134,27 @@ OPERON_DIR="$INTERMEDIATE/operon-org"
 OPERON_INPUT_DIR="$OPERON_DIR/input-fastas"
 OPERON_ANNOT_DIR="$OPERON_DIR/microbeannotator"
 OPERON_METADATA="$FINAL_DIR/operon_metadata.json"
-OPERON_CLUSTERS="$FINAL_DIR/pqq_operons.csv"
-FINAL_CSV="$FINAL_DIR/pqq_final.csv"
+OPERON_CLUSTERS="$FINAL_DIR/operons.csv"
+FINAL_CSV="$FINAL_DIR/final.csv"
+
+# Find the best match from the existing AFDB/GTDB PQQ BLAST database for
+# (1) placement on the reference tree and (2) assigning a substrate group.
+module load blast/2.15.0
+
+PQQ_BLAST_DB="${LANTREE_PQQ_BLAST_DB:-$REPO_ROOT/results/final/fastas/GTDB_AFDB_pqq.fasta}"
+PQQ_FASTA="$FINAL_DIR/fastas/pqq.fasta"
+PQQ_BLAST_OUTPUT="$FINAL_DIR/pqq_best_blast.tsv"
+if [[ ! -f "$PQQ_FASTA" ]]; then
+  echo "Expected PQQ FASTA was not created: $PQQ_FASTA" >&2
+  exit 1
+fi
+(
+  cd "$SCRIPT_DIR"
+  blastp -query "$PQQ_FASTA" \
+    -db "$PQQ_BLAST_DB" \
+    -outfmt '6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore' \
+    -out "$PQQ_BLAST_OUTPUT"
+)
 
 log "Preparing operon FASTA inputs in $OPERON_INPUT_DIR"
 mkdir -p "$OPERON_INPUT_DIR" "$OPERON_ANNOT_DIR"
@@ -179,19 +197,15 @@ if [[ -s "$OPERON_CLUSTERS" && -s "$FINAL_CSV" ]]; then
         --clusters_file "$OPERON_CLUSTERS" \
         --final_file "$FINAL_CSV" \
         --operon_dir "$OPERON_DIR" \
-        --metadata_file "$OPERON_METADATA"
+        --metadata_file "$OPERON_METADATA" \
+        --external
     )
   else
     log "No candidate operons found; skipping operon diagram"
   fi
 else
-  log "No nif result tables found; skipping operon diagram"
+  log "No result tables found; skipping operon diagram"
 fi
-
-# show identified nif genes on nifH reference tree
-#module load blast/2.15.0
-#makeblastdb
-#blastp
 
 # Emit final result for the runner
 if [[ ! -s "$FINAL_CSV" ]]; then
