@@ -1,11 +1,17 @@
-﻿genomeID,taxonomy,contig,hit,gene,LDE
-RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_1674,XoxF,0.0
-RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_3876,MxaF,1.0
-RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_1353,ExaF,1.0
-RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_1197,GDH,1.0
-RS_GCF_000011365.1,Bradyrhizobium diazoefficiens,NC_004463.1,NC_004463.1_331,pqq,1.0
-RS_GCF_000011365.1,Bradyrhizobium diazoefficiens,NC_004463.1,NC_004463.1_6347,pqq,1.0
-RS_GCF_000011365.1,Bradyrhizobium diazoefficiens,NC_004463.1,NC_004463.1_6354,pqq,1.0
-RS_GCF_000297415.1,Methylacidiphilum fumariolicum,NZ_OX458932.1,NZ_OX458932.1_1076,pqq,1.0
-RS_GCF_021283545.2,Pseudomonas_E alloputida,NZ_CP128540.1,NZ_CP128540.1_3381,pedH,1.0
-RS_GCF_021283545.2,Pseudomonas_E alloputida,NZ_CP128540.1,NZ_CP128540.1_3386,exaA,0.0
+﻿genomeID,taxonomy,contig,hit,gene,LDE,reference
+RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_1674,XoxF,0.0,https://www.jbc.org/article/S0021-9258(17)49416-6/fulltext
+RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_3876,MxaF,1.0,https://www.jbc.org/article/S0021-9258(17)49416-6/fulltext
+RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_1353,ExaF,1.0,https://www.jbc.org/article/S0021-9258(17)49416-6/fulltext
+RS_GCF_024169925.1,Methylobacterium extorquens_A,NZ_JALJXF010000001.1,NZ_JALJXF010000001.1_1197,GDH,1.0,
+RS_GCF_000011365.1,Bradyrhizobium diazoefficiens,NC_004463.1,NC_004463.1_331,pqq,1.0,https://www.sciencedirect.com/science/article/pii/S0141022919301085?via%3Dihub
+RS_GCF_000011365.1,Bradyrhizobium diazoefficiens,NC_004463.1,NC_004463.1_6347,pqq,1.0,
+RS_GCF_000011365.1,Bradyrhizobium diazoefficiens,NC_004463.1,NC_004463.1_6354,xoxF5,1.0,
+RS_GCF_000297415.1,Methylacidiphilum fumariolicum,NZ_CAHT01000021.1,NZ_CAHT01000021.1_5,XoxF,1.0,https://www.jbc.org/article/S0021-9258(17)49416-6/fulltext
+RS_GCF_021283545.2,Pseudomonas_E alloputida,NZ_CP128540.1,NZ_CP128540.1_3381,pedH,1.0,https://journals.asm.org/doi/10.1128/mbio.00570-17
+RS_GCF_021283545.2,Pseudomonas_E alloputida,NZ_CP128540.1,NZ_CP128540.1_3386,exaA,0.0,https://journals.asm.org/doi/10.1128/mbio.00570-17
+RS_GCF_000023705.1,Methylotenera mobilis JLW8,NC_012968.1,NC_012968.1_1768,XoxF4,1,https://www.frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2018.01366/full
+RS_GCF_000023705.1,Methylotenera mobilis JLW8,NC_012968.1,NC_012968.1_2047,XoxF4,1,https://www.frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2018.01366/full
+AFDB:AF-Q93RE9-F1,sorbose DH,0,https://pmc.ncbi.nlm.nih.gov/articles/PMC4815231/
+RS_GCF_000241525.1,Comamonas testosteroni,NZ_AHIL01000002.1_56,NZ_AHIL01000002.1_56_A,ADHII,https://link.springer.com/article/10.1007/s00775-021-01852-0/tables/3
+RS_GCF_000067045.1,Gluconacetobacter diazotrophicus,NC_010125.1_1954,NC_010125.1_1954_A,ADHIII,
+RS_GCF_000242255.2,Frateuria aurantia,NC_017033.1_2261,NC_017033.1_2261_A,ADHIII, 

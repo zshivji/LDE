@@ -151,13 +151,14 @@ def aln_fasta(
 ):
     # align fasta files
     splits_dir = os.path.join(tmp_dir, f'{prefix}fasta_splits')
+    print(splits_dir, flush=True)
     shutil.rmtree(splits_dir) if os.path.exists(splits_dir) else None
     os.makedirs(splits_dir, exist_ok=True)
     for name in genes['gene'].unique():
         print("aligning "+ name, flush=True)
         tmp = genes[genes['gene']==name].copy()
         num = int(tmp.shape[0]/200)+1 # how many splits
-        fasta_path = os.path.join(tmp_dir, f"{name}.fasta")
+        fasta_path = os.path.join(tmp_dir, f"{prefix}{name}.fasta")
         split_prefix = os.path.join(splits_dir, f"{name}_split")
         # split fasta file into smaller files for alignment
             # seqtk fails after 1024 so need to use seqkit
@@ -288,6 +289,7 @@ def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results
         checked_df = pd.concat(checked) if checked else pd.DataFrame()
         checked_df.drop_duplicates(subset = ['hit'], inplace = True)
         checked_df.set_index(['hit'], append= True, inplace = True)
+        checked_df = checked_df[checked_df.index != 'reference'] # drop reference row
         checked_df.to_csv(os.path.join(tmp_dir, f'{prefix}{gene}_residues.csv'))
 
         # check metal dependence (Asp320, LDE only***)
@@ -303,7 +305,7 @@ def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results
         tmp['LDE'] = tmp['hit'].map(lde_by_hit) # apply metal dependence (Asp320, LDE only***)
         # drop duplicates (keep lowest e-val)
         tmp = tmp.sort_values('E-value').drop_duplicates('hit', keep='first')
-        tmp.to_csv(os.path.join(tmp_dir, f'{gene}_rescheck_nofilt.csv'))
+        # tmp.to_csv(os.path.join(tmp_dir, f'{prefix}{gene}_rescheck_nofilt_config{passing_score}.csv'))
 
         all_genes_checked[gene] = tmp
 
@@ -313,15 +315,15 @@ def check_gene_wrapper(gene_list: dict, config: dict, tmp_dir: str = "../results
     os.makedirs(tmp_dir, exist_ok=True)
     all_genes_checked = pd.concat(all_genes_checked.values())
     # print(all_genes_checked, flush=True)
-    # all_genes_checked.set_index('GenomeID', inplace=True)
-    all_genes_checked.to_csv(os.path.join(tmp_dir, 'rescheck_nofilt.csv')) # index = GenomeID
+    all_genes_checked.set_index('GenomeID', inplace=True)
+    all_genes_checked.to_csv(os.path.join(tmp_dir, f'{prefix}rescheck_nofilt_config{passing_score}.csv')) # index = GenomeID
 
     return all_genes_checked
 
 # EXPORT
 def export_results(
-    all_genes_checked,
-    min_genes: int,
+    # all_genes_checked,
+    # min_genes: int,
     results_dir: str = "../results/final",
     proteins_dir: str = "../protein_faa_reps_232",
     include_metadata: bool = True,
@@ -329,7 +331,10 @@ def export_results(
     prefix: str = ""
 ) -> None:
     os.makedirs(results_dir, exist_ok=True)
-    hits = all_genes_checked.copy()
+    tmp_dir = "../results/tmp"
+    passing_score = 12
+    hits = pd.read_csv(os.path.join(tmp_dir, f'{prefix}rescheck_nofilt_config{passing_score}.csv'))
+    # hits = all_genes_checked.copy()
 
     # assign final annotation + group domains into proteins
     hits['protein'] = hits['hit'].str.rsplit('_', n=1).str[0] # remove domain suffix to get protein name
@@ -344,69 +349,27 @@ def export_results(
         genomes_to_keep['Location_start'] = location_parts[0].astype(int)
         genomes_to_keep['Location_end'] = location_parts[1].astype(int)
         genomes_to_keep['pos_num'] = genomes_to_keep['protein'].str.rsplit('_').str[-1].astype(int)
-    
-    # # assign annotation from remaining filtered seqs (now apply best hits approach)
-    # for idx, cluster in hits.groupby(['GenomeID', 'contig']):
-    #     # keep best hit per domain (of filtered domains)
-    #     cluster = cluster.loc[cluster.groupby('hit')['E-value'].idxmin()]
-    #     # merge domains into protein, aggegrate rows
-    #         # expecting nifNB, nifEN, nifDG
-    #     if cluster['Orientation'].sum() < 0: # if all genes on negative strand, reverse order of genes
-    #         cluster.sort_values(by=['hit','Domain Start'], ascending=False, inplace=True)
-    #     else:
-    #         cluster.sort_values(by=['hit', 'Domain Start'], ascending=True, inplace=True)
-    #     # if 'LKPX01000013.1_53' in cluster['protein'].to_list():
-    #     #     print(cluster)
-    #     cluster = cluster.groupby('protein', group_keys=False).agg({
-    #         'GenomeID': 'first',
-    #         'contig': 'first',
-    #         'operon': 'first',
-    #         'gene': lambda x: '_'.join(sorted(x)),
-    #         'hit': lambda x: ','.join(sorted(x)),
-    #         'E-value': 'min',
-    #         'Bit Score': 'sum',
-    #         'Bias': 'sum',
-    #         'Domain Start': 'min',
-    #         'Domain End': 'max',
-    #         'Location': 'first',
-    #         'Orientation': 'first',
-    #         'Flag_Bias': 'sum',
-    #         'pos_num': 'first',
-    #         'top_hit': lambda x: ','.join(sorted(x)),
-    #         'residue_match':  lambda x: ''.join(
-    #             gene if i == 0 else gene[-1]
-    #             for i, gene in enumerate(sorted(x))
-    #         ),
-    #         'GTDB': 'first',
-    #         'LDE': 'first'
-    #     })
 
-    #clean up cols
-    # print(genomes_to_keep, flush=True)
-    # genomes_to_keep['gene'] = genomes_to_keep['residue_match']
-    # genomes_to_keep.drop_duplicates(inplace = True)
-    # genomes_to_keep = genomes_to_keep.reset_index()
+    # # get fasta sequences for each gene & export to fasta
+    # os.makedirs(os.path.join(results_dir, "fastas"), exist_ok=True)
+    # for gene in genomes_to_keep['gene'].unique().tolist():
+    #     records = []
 
-    # get fasta sequences for each gene & export to fasta
-    os.makedirs(os.path.join(results_dir, "fastas"), exist_ok=True)
-    for gene in genomes_to_keep['gene'].unique().tolist():
-        records = []
-
-        for genome, hit in genomes_to_keep[genomes_to_keep.gene == gene].iterrows():
-            record = get_seq(
-                genome,
-                hit.protein,
-                id=hit.protein,
-                description=f"{genome} {hit.gene}",
-                dir=proteins_dir,
-            )
-            records.append(record)
+    #     for genome, hit in genomes_to_keep[genomes_to_keep.gene == gene].iterrows():
+    #         record = get_seq(
+    #             genome,
+    #             hit.protein,
+    #             id=hit.protein,
+    #             description=f"{genome} {hit.gene}",
+    #             dir=proteins_dir,
+    #         )
+    #         records.append(record)
                     
-        # Write the records to a FASTA file
-        with open(os.path.join(results_dir, f"fastas/{prefix}{gene}.fasta"), "w") as output_handle:
-            SeqIO.write(records, output_handle, "fasta")
+    #     # Write the records to a FASTA file
+    #     with open(os.path.join(results_dir, f"fastas/{prefix}{gene}.fasta"), "w") as output_handle:
+    #         SeqIO.write(records, output_handle, "fasta")
 
-        print(f"{len(records)} final {gene} hits", flush=True)
+    #     print(f"{len(records)} final {gene} hits", flush=True)
 
 
     if include_metadata:
@@ -447,21 +410,35 @@ def export_results(
             )
         elif prefix.__contains__('AFDB'):
             from helper import get_AFDB_domain
+            print('getting AFDB domains', flush=True)
 
-            domains = []
+            domains = {}
+            organisms = {}
 
-            for record in SeqIO.parse(f"{results_dir}/{prefix}final.csv", "fasta"):
-                domains.append(get_AFDB_domain(record.id))
+            for record in SeqIO.parse(f"{results_dir}/fastas/{prefix}pqq.fasta", "fasta"):
+                domain, organism = get_AFDB_domain(record.id)
+                domains[record.id] = domain
+                organisms[record.id] = organism
+            
 
-            genomes_to_keep["domain"] = domains
+
+            genomes_to_keep["domain"] = genomes_to_keep["protein"].map(domains)
+            genomes_to_keep["Organism"] = genomes_to_keep["protein"].map(organisms)
+
+            genomes_to_keep['GTDB Taxonomy'] = ""
+            genomes_to_keep['NCBI Taxonomy'] = ""
+            genomes_to_keep['Isolation Source'] = ""
+
 
     genomes_to_keep["Group"] = ""
     # export csv with each gene as individual row
     if external: # clean up export for external DiazoDB users
         external_export = genomes_to_keep.copy()
         external_export['Sequence Length'] = external_export['Domain End'] - external_export['Domain Start']
-        external_export = external_export[['contig', 'operon', 'protein', 'pos_num', 'gene', 'Location', 'Sequence Length', 'Orientation', 
+        external_export = external_export[[GenomeID','contig', 'operon', 'protein', 'pos_num', 'gene', 'Location', 
+                                           'Sequence Length', 'Orientation', 
                                            'Location_start', 'Location_end', 'LDE', 'Group']]
+        
         external_export.to_csv(os.path.join(results_dir, f'{prefix}final.csv'))
         operons = external_export.copy()
         operons.to_csv(os.path.join(results_dir, f'{prefix}operons.csv'))

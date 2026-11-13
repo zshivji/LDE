@@ -15,6 +15,10 @@ import numbers
 import shutil
 import subprocess
 from pathlib import Path
+import re, time, requests
+from io import StringIO
+from pathlib import Path
+from Bio import SeqIO
 
 from Bio import SeqIO
 from pygenomeviz import GenomeViz
@@ -194,6 +198,147 @@ def ko2gene(ko):
 
     return ko # fallback
 
+def get_AFDB_operons(protein, operon_dir):
+
+    def get(url, params):
+        r = requests.get(url, params=params, timeout=60)
+        r.raise_for_status()
+        return r.text
+
+
+    def uniprot_crossrefs(ua):
+        txt = get(f"https://rest.uniprot.org/uniprotkb/{ua}.txt", {})
+        refs = []
+
+        for line in txt.splitlines():
+            if not line.startswith("DR   "):
+                continue
+
+            fields = [x.strip() for x in line[5:].split(";")]
+            db = fields[0]
+
+            if db == "EMBL" and len(fields) >= 3:
+                refs.append(fields[2])
+            elif db == "RefSeq" and len(fields) >= 2:
+                refs.append(fields[1])
+
+        return refs
+    
+    def find_nucleotide_record(protein_ids):
+        for protein_id in protein_ids:
+            try:
+                gb = get(
+                    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+                    {"db": "protein", "id": protein_id,
+                    "rettype": "gb", "retmode": "text"}
+                )
+
+                record = SeqIO.read(StringIO(gb), "genbank")
+
+                for feature in record.features:
+                    if feature.type != "CDS":
+                        continue
+                    coded_by = " ".join(feature.qualifiers.get("coded_by", []))
+                    match = re.search(r"([A-Za-z][A-Za-z0-9_.]*):", coded_by)
+                    if match:
+                        return protein_id, match.group(1)
+
+            except Exception:
+                pass
+
+        return None, None
+
+    def extract_flanks(ua):
+        if not isinstance(protein, str) or not protein.startswith("AFDB:AF-"):
+            print(f"SKIP_INVALID_AFDB_ID\t{protein}")
+            return
+
+        ua = protein[len("AFDB:AF-"):]
+        if ua.endswith("-F1"):
+            ua = ua[:-3]
+
+        # Accept standard six- or ten-character UniProt accessions. This
+        # excludes AFDB numeric identifiers such as 0000000018112905, which
+        # cannot be resolved through the UniProt REST API.
+        valid_ua = re.fullmatch(
+            r"(?:[A-Z][0-9][A-Z0-9]{3}[0-9]|[A-Z][0-9][A-Z0-9]{8})",
+            ua,
+        )
+        if valid_ua is None:
+            print(f"SKIP_INVALID_UA\t{protein}\t{ua}")
+            return
+
+        refs = uniprot_crossrefs(ua)
+        protein_id, nucleotide_id = find_nucleotide_record(refs)
+
+        if not nucleotide_id:
+            print(f"NO_SOURCE\t{ua}")
+            return
+
+        gb = get(
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+            {"db": "nuccore", "id": nucleotide_id,
+            "rettype": "gb", "retmode": "text"}
+        )
+        record = SeqIO.read(StringIO(gb), "genbank")
+
+        cds = [
+            f for f in record.features
+            if f.type == "CDS" and f.location is not None
+        ]
+
+        target = None
+
+        for feature in cds:
+            ids = feature.qualifiers.get("protein_id", [])
+            if protein_id in ids:
+                target = feature
+                break
+
+        if target is None:
+            print(f"NO_TARGET_CDS\t{ua}\t{nucleotide_id}")
+            return
+
+        cds.sort(key=lambda f: int(f.location.start))
+        target_i = cds.index(target)
+
+        lo = max(0, target_i - 10)
+        hi = min(len(cds), target_i + 11)
+
+        out = Path(operon_dir/"input-fastas"/f"{protein}.fasta")
+
+        with out.open("w") as handle:
+            for i in range(lo, hi):
+                feature = cds[i]
+                offset = i - target_i
+                q = feature.qualifiers
+
+                gene = q.get("gene", ["unknown"])[0]
+                pid = q.get("protein_id", ["unknown"])[0]
+                strand = feature.location.strand
+
+                # Use the source annotation's translated CDS when available.
+                # Fall back to translating the CDS with its annotated genetic
+                # code, or bacterial table 11 when no code is provided.
+                translation = q.get("translation")
+                if translation:
+                    seq = translation[0]
+                else:
+                    nuc = feature.extract(record.seq)
+                    table = int(q.get("transl_table", [11])[0])
+                    seq = str(nuc.translate(table=table, to_stop=True))
+
+                handle.write(
+                    f">{ua}|offset={offset:+d}|gene={gene}|"
+                    f"protein_id={pid}|contig={record.id}|strand={strand}\n"
+                )
+                handle.write(seq + "\n")
+
+        print(f"OK\t{ua}\t{nucleotide_id}\t{out}")
+
+    extract_flanks(protein)
+
+
 # run before microbeannotator
 def get_operon_fasta(results, proteins_dir, operon_dir):
     # grab fasts file for +/-5 genes around nif operon
@@ -205,29 +350,19 @@ def get_operon_fasta(results, proteins_dir, operon_dir):
         contig = cluster['contig']
         genome = cluster['GenomeID']
         operon = cluster['operon']
-        # cl = cluster['cluster']
-        # Database-build tables contain ``pos_num``; external DiazoDB tables
-        # contain the equivalent ``proteins`` list (contig_gene_number).
-
-        # if positions is None or (isinstance(positions, float) and math.isnan(positions)):
-        #     proteins = cluster.get('proteins', [])
-        #     if isinstance(proteins, str):
-        #         proteins = ast.literal_eval(proteins)
-        #     positions = [int(str(protein).rsplit('_', 1)[1]) for protein in proteins]
-        # if isinstance(positions, str):
-        #     positions = ast.literal_eval(positions)
-
-        # get positions within +/-5 genes of operon
-        start = int(cluster['pos_num']) - 5
-        end = int(cluster['pos_num']) + 5
-        acc = [contig + '_' + str(p) for p in range(start, end)] # get acc
 
         # save subsets as fasta
-        file = load_faa(proteins_path, genome)
-
-        records = [record for record in SeqIO.parse(file, "fasta") if record.id in set(acc)]
-        output = output_dir / (f"{genome}_{contig}_{operon}_operon.fasta")
-        SeqIO.write(records, output, "fasta")
+        if genome.startswith("AFDB"):
+            get_AFDB_operons(cluster['protein'], operon_dir)
+        else:
+            # get positions within +/-5 genes of operon
+            start = int(cluster['pos_num']) - 10
+            end = int(cluster['pos_num']) + 10
+            acc = [contig + '_' + str(p) for p in range(start, end)] # get acc
+            file = load_faa(proteins_path, genome)
+            records = [record for record in SeqIO.parse(file, "fasta") if record.id in set(acc)]
+            output = output_dir / (f"{genome}_{contig}_{operon}_operon.fasta")
+            SeqIO.write(records, output, "fasta")
 
 # run after mircobeannotator
 def get_plot_data(final_file, clusters_file, operon_dir):
@@ -244,8 +379,18 @@ def get_plot_data(final_file, clusters_file, operon_dir):
         file = Path(operon_dir) / "microbeannotator" / "annotation_results" / f"{genome}_{contig}_{operon}_operon.fasta.annot"
         annot = pd.read_csv(file, sep = '\t', index_col = 'query_id')
 
+        # MicrobeAnnotator can emit one row per database hit, so query_id is
+        # not always unique (for example, a Swiss-Prot row and a RefSeq row
+        # for the same sequence).  Normalize its literal missing values and
+        # merge duplicate rows before doing index-aligned Series operations.
+        annot = annot.replace({"NA": pd.NA, "": pd.NA})
+        if not annot.index.is_unique:
+            annot = annot.groupby(level=0, sort=False).first()
+
         # convert ko_number to gene abv
-        annot['ko_number'] = annot['ko_number'].apply(ko2gene)
+        annot['ko_number'] = annot['ko_number'].map(
+            lambda ko: ko2gene(ko) if pd.notna(ko) else ko
+        )
         # update gene column to use ko_number if available, otherwise use protein_id
         annot['gene'] = annot['ko_number'].combine_first(annot['protein_id'])
 
@@ -320,7 +465,7 @@ def get_group(final_file, clusters_file, external=False):
                 #     hits.extend(pqq.loc[pqq['Gene'].isin(['anfH', 'vnfH']), 'protein'].to_list()) # add anfH/vnfH to group 3anfvnf
         
         # Apply the nifH/anfH/vnfH group to every gene in each matched cluster
-        cluster_cols = ['GenomeID', 'contig', 'cluster', 'operon']
+        cluster_cols = ['GenomeID', 'contig', 'operon']
 
         if external:
             pqq.loc[pqq['sseqid'].isin(hits), 'Group'] = f'{group}'

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=1:00:00   # walltime
+#SBATCH --time=3:00:00   # walltime
 #SBATCH --ntasks=1   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 4GB   # memory per CPU core
@@ -19,24 +19,26 @@ echo ""
 
 DIR="/resnick/groups/enviromics/zahra/LDE/results/hmmsearch_results"
 
-# --refine added to filter hits based on min gene in gene_range (don't need these params unless --refine specified)
+#python parse_hmm.py \
+#    --hits "$DIR"/archaea/ \
+#    --outdir "$DIR"/archaea \
+#    --min_genes 1 \
+#    --gene_range 15 \
+#    --refine
 
-python parse_hmm.py \
-	--hits "$DIR"/archaea/ \
-	--outdir "$DIR"/archaea \
-    --min_genes 1 \
-    --gene_range 15
-
-python parse_hmm.py \
-	--hits "$DIR"/bacteria/ \
-	--outdir "$DIR"/bacteria \
-    --min_genes 1 \
-    --gene_range 15
+#python parse_hmm.py \
+#	--hits "$DIR"/bacteria/ \
+#	--outdir "$DIR"/bacteria \
+#    --min_genes 1 \
+#    --gene_range 15 \
+#    --refine
 
 python parse_hmm.py \
     --hits "$DIR"/AFDB/ \
-    --outdir "$DIR"/AFDB
-
+    --outdir "$DIR"/AFDB \
+    --min_genes 1 \
+    --gene_range 15 \
+# don't use refine for AFDB since data is not organized into contigs
 echo ""
 echo "======================================================"
 echo "End Time   : $(date)"

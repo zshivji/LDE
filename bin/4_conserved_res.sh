@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --time=2:04:00   # walltime #8hrs?
+#SBATCH --time=1:04:00   # walltime #8hrs?
 #SBATCH --ntasks=4   # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1   # number of nodes
 #SBATCH --mem 40GB   # memory per CPU core
@@ -19,11 +19,10 @@ echo ""
 
 #python conserved_res.py --align_fasta --test
 
-python conserved_res.py \
-  --reload_fasta \
-  --min_genes 1 \
-  --proteins_dir /resnick/groups/enviromics/zahra/diazoDB-HPC/protein_faa_reps_232 \
-  --out_prefix GTDB
+#python conserved_res.py \
+#  --min_genes 1 \
+#  --proteins_dir /resnick/groups/enviromics/zahra/diazoDB-HPC/protein_faa_reps_232 \
+#  --out_prefix GTDB
    # --reload_fasta \
    # --align_fasta \
    # --test \
@@ -47,7 +46,14 @@ python conserved_res.py \
 #  --min_genes 1 \
 #  --proteins_dir /resnick/groups/enviromics/zahra/LDE/results/tmp/AFDB_hits.fasta \
 #  --out_prefix AFDB \
+#  --align_fasta
 #  --reload_fasta
+
+python -c "from conserved_res import export_results; export_results(prefix='AFDB_', proteins_dir='../results/tmp/AFDB_hits.fasta')"
+
+python -c "from conserved_res import export_results; export_results(prefix='GTDB_')"
+
+python -c "from helper import subset_results; subset_results(prefix='GTDB')"
 
 echo ""
 echo "======================================================"

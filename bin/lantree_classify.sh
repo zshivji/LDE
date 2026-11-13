@@ -38,10 +38,9 @@ fi
 mkdir -p "$INTERMEDIATE" "$FINAL_DIR"
 
 HMMSEARCH_BIN="${LANTREE_HMMSEARCH_BIN:-hmmsearch}"
-PRODIGAL_BIN="${LANTREE_PRODIGAL_BIN:-prodigal}"
+PRODIGAL_ENV="${LANTREE_PRODIGAL_BIN:-/resnick/groups/enviromics/zahra/miniconda3/envs/prodigal}"
 USE_PRODIGAL="${LANTREE_USE_PRODIGAL:-false}"
 LANTREE_CONDA_ENV="${LANTREE_CONDA_ENV:-/resnick/groups/enviromics/zahra/miniconda3/envs/parse_hmm}"
-LANTREE_PRODIGAL_ENV="${LANTREE_PRODIGAL_ENV:-/resnick/groups/enviromics/zahra/miniconda3/envs/prodigal}"
 CONDA_BIN="${LANTREE_CONDA_BIN:-/resnick/groups/enviromics/zahra/miniconda3/bin/conda}"
 MICROBE_ENV="${LANTREE_MICROBE_ENV:-/resnick/groups/enviromics/zahra/miniconda3/envs/microbeannotator}"
 MICROBE_DB="${LANTREE_MICROBE_DB:-/resnick/groups/enviromics/databases/microbeannotator-db}"
@@ -67,19 +66,21 @@ if [[ ! -x "$CONDA_BIN" ]]; then
   echo "Conda executable not found or not executable: $CONDA_BIN" >&2
   exit 127
 fi
-eval "$("$CONDA_BIN" shell.bash hook)"
-  conda activate "$LANTREE_CONDA_ENV"
 
 if [[ "$USE_PRODIGAL" == "true" ]]; then
-  QUERY_FASTA="$OUTDIR/predicted_proteins.faa"
-  "$PRODIGAL_BIN" \
+  QUERY_FASTA="${QUERY_FASTA%/*}/predicted_proteins.faa"
+  "$CONDA_BIN" run -p "$PRODIGAL_ENV" \
+    prodigal \
     -i "$INPUT_FASTA" \
     -a "$QUERY_FASTA" \
     -p meta \
     -q
 fi
 
-INPUT_STEM="$(basename "$INPUT_FASTA")"
+eval "$("$CONDA_BIN" shell.bash hook)"
+conda activate "$LANTREE_CONDA_ENV"
+
+INPUT_STEM="$(basename "$QUERY_FASTA")"
 INPUT_STEM="${INPUT_STEM%.*}"
 SAFE_INPUT_STEM="$(printf '%s' "$INPUT_STEM" | tr -c 'A-Za-z0-9._-' '_')"
 SAFE_JOB_ID="$(printf '%s' "$LANTREE_JOB_ID" | tr -c 'A-Za-z0-9._-' '_')"
@@ -111,7 +112,7 @@ if python conserved_res.py \
   --hits_file "$JOB_PARSED_HITS" \
   --reload_fasta \
   --min_genes 1 \
-  --proteins_dir "$(dirname "$QUERY_FASTA")" \
+  --proteins_dir "$QUERY_FASTA" \
   --tmp "$TMP" \
   --final_dir "$FINAL_DIR" \
   --skip_metadata \
@@ -163,7 +164,7 @@ if [[ -s "$OPERON_CLUSTERS" && -s "$FINAL_CSV" ]]; then
     cd "$SCRIPT_DIR"
     "$CONDA_BIN" run -p "$LANTREE_CONDA_ENV" python metadata.py \
       --prepare \
-      --proteins_dir "$(dirname "$QUERY_FASTA")" \
+      --proteins_dir "$QUERY_FASTA" \
       --clusters_file "$OPERON_CLUSTERS" \
       --operon_dir "$OPERON_DIR"
   )

@@ -124,33 +124,52 @@ def filter_groups_by_unique_counts(df, group_cols, requirements, exclude='nifB')
         lambda x: has_excluded_protein(x) or meets_requirements(x)
     )
 
-def tree_node_match_metadata(tree_file):
+def tree_node_match_metadata(cluster_file,tree_file=None, tree_csv=None):
 
-    clusters = pd.read_csv('../results/final/nif_clusters.csv')
+    clusters = pd.read_csv(cluster_file)
 
-    tree = Phylo.read(tree_file, "newick")
+    if tree_file is not None: #rewrite newick tree with updated node names
+        tree = Phylo.read(tree_file, "newick")
 
-    for clade in tree.get_terminals():
-        # for each node, update nodeID to match the metadata headers (except added outbranches)
-        if clade.name.startswith('WP_'):
-            new_name = clade.name
-        else:
-            protein = clade.name
-            contig = '_'.join(protein.split('_')[:-1])
-            position = protein.split('_')[-1]
-            cluster = clusters[clusters["contig"] == contig]
-            for _, row in cluster.iterrows():
-                positions = str(row['pos_num']).strip('[]').replace(',', ' ').split()
-                if position in {p.strip() for p in positions}:
-                    organism = row['Organism']
-                    clusterID = row['cluster']
-                    genome = row['GenomeID']
-                    new_name = f"{organism} | {clusterID} | {genome} | {protein}"
-                    break
+        for clade in tree.get_terminals():
+            # for each node, update nodeID to match the metadata headers (except added outbranches)
+            if clade.name.startswith('WP_'):
+                new_name = clade.name
+            else:
+                protein = clade.name
+                contig = '_'.join(protein.split('_')[:-1])
+                position = protein.split('_')[-1]
+                cluster = clusters[clusters["contig"] == contig]
+                for _, row in cluster.iterrows():
+                    positions = str(row['pos_num']).strip('[]').replace(',', ' ').split()
+                    if position in {p.strip() for p in positions}:
+                        organism = row['Organism']
+                        clusterID = row['cluster']
+                        genome = row['GenomeID']
+                        new_name = f"{organism} | {clusterID} | {genome} | {protein}"
+                        break
 
-        clade.name = new_name
+            clade.name = new_name
 
-    Phylo.write(tree, tree_file, "newick")
+        Phylo.write(tree, tree_file, "newick")
+    
+    elif tree_csv is not None: #export tree node names to csv
+        node_names = pd.read_csv(tree_csv, header=None, sep="\t", names=['current', 'new'])
+        new_names = []
+
+        for row in node_names.iterrows():
+            current_name = row[1]['current']
+            if current_name.startswith('AFDB'):
+                current_name = current_name.replace("_",":",1)
+            tmp = clusters[clusters['protein'] == current_name]
+            domain = str(tmp['domain'].values[0]) + ' | ' if not tmp.empty else ''
+            genome = str(tmp['GenomeID'].values[0]) + ' | ' if not tmp.empty else ''
+            lde = str(tmp['LDE'].values[0]) + ' | ' if not tmp.empty else ''
+            organism = str(tmp['Organism'].values[0]) + ' | ' if not tmp.empty else ''
+            new_names.append(f"{domain}{organism}{lde}{genome}{current_name}")
+
+        node_names['new'] = new_names
+        node_names.to_csv(tree_csv, index=False, header=False, sep="\t")
 
 def tree_comparison(cutoff=90):
     # for each comparison DB, create a list of nodes that have a match in diazoDB
@@ -193,7 +212,7 @@ def tree_comparison(cutoff=90):
 #     plt.savefig('../diazoDB-comparison/tree-comparison/nifD-tree-comparison-venn.png')
 #     plt.close()
 
-def get_AFDB_domain(record, fasta_path = "../AFDB.fasta"):
+def get_AFDB_domain(record, fasta_path = "../results/tmp/AFDB_hits.fasta"):
     """Yield one dictionary per FASTA record.
 
     domain is Bacteria, Archaea, Eukaryota, or None.
@@ -253,7 +272,7 @@ def get_AFDB_domain(record, fasta_path = "../AFDB.fasta"):
                 ua = re.search(r"\bUA=(\S+)", header)
 
                 taxid = int(ox.group(1)) if ox else None
-                organism = os.group(1).strip() if os else None
+                organism = os.group(1).strip() if os else None # already included in AFDB fasta header
 
                 domain = (
                     None
@@ -261,7 +280,98 @@ def get_AFDB_domain(record, fasta_path = "../AFDB.fasta"):
                     else lookup_domain(taxid)
                 )
 
-                return domain
+                return domain, organism
+
+import json
+import os
+import subprocess
+import re
+
+def subset_results(
+        prefix = "", 
+        cutoff=20, 
+        tmp_dir = "../results/tmp"):
+    # subset hits with a higher passing_score
+    prefix = prefix + "_" if prefix else ""
+    gene = 'pqq'
+
+    # 1. get subset
+    subset = pd.read_csv(os.path.join(tmp_dir, f'{prefix}{gene}_residues.csv'))
+    subset = subset[subset['score'] >= cutoff]
+
+    ind = subset['hit'].values
+    ind2 = subset['contig'].values
+
+    # 2. subset final.csv, operons.csv
+    result_dir = "../results/final"
+    final = pd.read_csv(os.path.join(result_dir, f'{prefix}final.csv'), index_col=['hit'])
+    final = final[final.index.isin(ind)]
+    final.to_csv(os.path.join(result_dir, f'{prefix}final_{cutoff}.csv'), index=False)
+
+    clusters = pd.read_csv(os.path.join(result_dir, f'{prefix}operons.csv'), index_col=['hit'])
+    clusters = clusters[clusters.index.isin(ind)]
+    clusters.to_csv(os.path.join(result_dir, f'{prefix}operons_{cutoff}.csv'), index=False)
+    
+    # 3. subset fastas
+    with open("subset.txt", "w") as file:
+        file.write("\n".join(ind2) + "\n")
+
+    input = f'{result_dir}/fastas/{prefix}{gene}.fasta'
+    output = f'{result_dir}/fastas/{prefix}{gene}_{cutoff}.fasta'
+
+    subprocess.run(
+        ["seqkit", "grep", "--quiet", "-f", "subset.txt", 
+         input, "-o", output],
+        check=True)
+
+    # # 4. subset metadata
+    # metadata_file = os.path.join(result_dir, "{prefix}metadata.json")
+    # metadata_output = None
+
+    # with open(metadata_file) as handle:
+    #     metadata = json.load(handle)
+
+    #     # Prefer the explicit genome/contig/operon fields, then fall back to
+    #     # gene IDs for metadata produced by older versions of metadata.py.
+    #     selected_locations = {
+    #         (str(row.get("GenomeID", "")), str(row.get("contig", "")), str(row.get("operon", "")))
+    #         for _, row in final_subset.iterrows()
+    #     }
+    #     filtered_metadata = {}
+    #     for key, value in metadata.items():
+    #         location = (
+    #             str(value.get("genome", "")),
+    #             str(value.get("contig", "")),
+    #             str(value.get("operon", "")),
+    #         )
+    #         genes = value.get("operon", {}).get("genes", [])
+    #         gene_ids = {str(gene.get("gene_id", "")) for gene in genes}
+    #         if location in selected_locations or gene_ids & selected_ids:
+    #             filtered_metadata[key] = value
+
+    #     metadata_stem, metadata_extension = os.path.splitext(os.fspath(metadata_file))
+    #     metadata_output = f"{metadata_stem}_{cutoff}{metadata_extension}"
+    #     with open(metadata_output, "w") as handle:
+    #         json.dump(filtered_metadata, handle, indent=2, allow_nan=False)
+
+def subset_tree(clusters="../trees/config20/GTDB_AFDB_pqq_20_clustered_cluster.tsv"):
+    subset = pd.read_csv(clusters, header=None, sep='\t').iloc[:,0].to_list()
+    df2 = pd.read_csv('../results/final/GTDB_final_20.csv', index_col = 'protein')
+    df3 = pd.read_csv('../results/final/AFDB_final_20.csv', index_col = 'protein')
+    df = pd.concat([df2, df3])
+    df = df[df.index.isin(subset)]
+
+    df.to_csv('../results/final/tree20.csv')
+
+def map_contig(file1, file2, col="contig"):
+    # df1 = pd.read_csv(file1)
+    df2 = pd.read_csv(file2)
+    # df3 = pd.read_csv('../results/hmmsearch_results/bacteria_hits.csv')
+    # df = pd.concat([df1,df3], ignore_index=True)
+    # df1 = df.drop_duplicates(subset=['hit'])
+    # col2map = df.set_index('hit')[col]
+    df2[col] = df2['protein']
+    df2.to_csv(file2, index=False)
 
 
 def main():
